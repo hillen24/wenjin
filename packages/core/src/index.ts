@@ -21,6 +21,7 @@ import { AiGate } from './ai/verify';
 import { MaterialsStore } from './materials/store';
 import { ReaderStore } from './reader';
 import { ProgressStore } from './progress';
+import { StarGraphStore } from './star/custom';
 import { TtsController, type TtsEnv } from './tts';
 import { DebateSession } from './debate';
 import { GewuSession } from './gewu';
@@ -44,6 +45,21 @@ export * from './prompts';
 
 /* --- 星图引擎（纯函数，可单测） --- */
 export * from './star/engine';
+export {
+  StarGraphStore,
+  buildAiPrompt,
+  nameToId,
+  parseAiGraph,
+  validateIncoming,
+  CUSTOM_SCHOOL,
+  EMPTY_GRAPH,
+  MAX_CUSTOM_EDGES,
+  MAX_CUSTOM_NODES,
+  type CustomGraph,
+  type GraphFragment,
+  type ParseAiResult,
+  type ValidateResult,
+} from './star/custom';
 
 /* --- 存储 --- */
 export * from './storage';
@@ -111,6 +127,8 @@ export interface WenjinCore {
   materials: MaterialsStore;
   reader: ReaderStore;
   progress: ProgressStore;
+  /** 星图共建：用户自定义节点/边的存取与合并 */
+  star: StarGraphStore;
   tts: TtsController;
   debate: DebateSession;
   gewu: GewuSession;
@@ -216,6 +234,7 @@ export function createCore(opts: CoreOptions = {}): WenjinCore {
     materials: new MaterialsStore(kv),
     reader: new ReaderStore(kv),
     progress: new ProgressStore(kv),
+    star: new StarGraphStore(kv),
     tts,
     debate: new DebateSession(PHILOSOPHERS),
     gewu: new GewuSession(),

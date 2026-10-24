@@ -148,6 +148,8 @@ export const STORAGE_KEYS = {
   userBooks: 'wj_user_books',
   /** 格物卡 / 论道记录 / 阅读记录，形如 { cards, debates, readings } */
   materials: 'wj_materials_v1',
+  /** 星图共建：用户自定义节点与边，形如 { nodes, edges } */
+  customGraph: 'wj_custom_graph_v1',
 } as const;
 
 /** 单篇阅读进度。旧版是 'wj_prog_' + docId，保持一致。 */

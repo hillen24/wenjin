@@ -10,7 +10,7 @@
  * 让 Vue 只承担一次性结构渲染。用响应式驱动物理帧会拖垮列表 diff。
  */
 
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { Icon } from '@wenjin/ui';
 import {
   BASE_VIEW,
@@ -18,21 +18,30 @@ import {
   STAR_EDGES,
   STAR_NODES,
   blindSpots,
+  buildAiPrompt,
   initBodies,
+  nameToId,
   neighborIds,
   nodeRadius,
+  parseAiGraph,
   relatedEdges,
   relayout,
   screenToView,
   step,
   zoomView,
+  type CustomGraph,
+  type EdgeRelation,
   type NodeKind,
   type StarBody,
+  type StarEdge,
+  type StarNode,
   type ViewBox,
 } from '@wenjin/core';
 import { useCore } from '../providers';
+import { useNav } from '../nav';
 
 const core = useCore();
+const nav = useNav();
 
 /**
  * focus：外部指定的选中节点（从伴读回答、格物卡、方法论卡跳过来时带过来的）。
@@ -43,7 +52,20 @@ const props = defineProps<{ focus?: string | null }>();
 /* ---------------- 状态 ---------------- */
 
 const view = shallowRef<ViewBox>({ ...BASE_VIEW });
-const bodies = shallowRef<Record<string, StarBody>>(initBodies(STAR_NODES, BASE_VIEW));
+
+/**
+ * 星图共建（3.5.0）：
+ * 内置星图仍是只读常量，用户自己加的节点/边存在 core.star（localStorage），
+ * 展示时合并 —— 升级内置数据不会踩掉用户加的内容。
+ */
+const graph = ref<CustomGraph>(core.star.load());
+
+const allNodes = computed<readonly StarNode[]>(() => [...STAR_NODES, ...graph.value.nodes]);
+const allEdges = computed<readonly StarEdge[]>(() => [...STAR_EDGES, ...graph.value.edges]);
+
+const customIds = computed(() => new Set(graph.value.nodes.map((n) => n.id)));
+
+const bodies = shallowRef<Record<string, StarBody>>(initBodies(allNodes.value, BASE_VIEW));
 
 const selectedId = ref<string | null>(null);
 const hoverId = ref<string | null>(null);
@@ -97,25 +119,25 @@ const viewBoxAttr = computed(
 );
 
 const hoverSet = computed(() =>
-  hoverId.value ? neighborIds(STAR_EDGES, hoverId.value) : null,
+  hoverId.value ? neighborIds(allEdges.value, hoverId.value) : null,
 );
 
 const selected = computed(() =>
-  selectedId.value ? (STAR_NODES.find((n) => n.id === selectedId.value) ?? null) : null,
+  selectedId.value ? (allNodes.value.find((n) => n.id === selectedId.value) ?? null) : null,
 );
 
 const selectedRels = computed(() =>
-  selectedId.value ? relatedEdges(STAR_EDGES, selectedId.value) : [],
+  selectedId.value ? relatedEdges(allEdges.value, selectedId.value) : [],
 );
 
-const blind = computed(() => blindSpots(STAR_NODES, litIds.value));
+const blind = computed(() => blindSpots(allNodes.value, litIds.value));
 
-const litPct = computed(() => Math.round((litIds.value.length / STAR_NODES.length) * 100));
+const litPct = computed(() => Math.round((litIds.value.length / allNodes.value.length) * 100));
 
 /* ---------------- 帧循环 ---------------- */
 
 function loop(): void {
-  step(bodies.value, STAR_EDGES, view.value);
+  step(bodies.value, allEdges.value, view.value);
 
   for (const [id, el] of nodeEls) {
     const b = bodies.value[id];
@@ -124,7 +146,7 @@ function loop(): void {
   }
 
   for (const [i, el] of lineEls) {
-    const edge = STAR_EDGES[i];
+    const edge = allEdges.value[i];
     if (!edge) continue;
     const A = bodies.value[edge[0]];
     const B = bodies.value[edge[1]];
@@ -353,7 +375,7 @@ function fitView(source: ViewBox): ViewBox {
 function doRelayout(): void {
   relayout(
     bodies.value,
-    STAR_NODES.map((n) => n.id),
+    allNodes.value.map((n) => n.id),
     view.value,
   );
   view.value = fitView(BASE_VIEW);
@@ -361,6 +383,169 @@ function doRelayout(): void {
 
 function lightUp(id: string): void {
   if (!litIds.value.includes(id)) litIds.value = [...litIds.value, id];
+}
+
+/* ============================================================
+ * 星图共建（3.5.0）
+ *
+ * 两条路进同一个校验漏斗（validateIncoming）：
+ * - AI 路：用户用自然语言描述 → 模型输出 JSON → parseAiGraph 规范化 → 预览
+ * - 手动路：表单直接填
+ * 预览确认后才落 core.star。模型说错话最多浪费一次生成，污染不进图。
+ * ============================================================ */
+
+const builderOpen = ref(false);
+const builderMode = ref<'ai' | 'manual'>('ai');
+
+const aiInput = ref('');
+const aiBusy = ref(false);
+const aiError = ref('');
+const preview = ref<{ nodes: StarNode[]; edges: StarEdge[]; warnings: string[] } | null>(null);
+
+const aiLive = computed(() => core.ai.isLive());
+
+/** 手动表单 */
+const form = ref({
+  name: '',
+  kind: 'concept' as NodeKind,
+  school: '',
+  brief: '',
+  src: '',
+  toId: '',
+  rel: 'refines' as EdgeRelation,
+  label: '',
+});
+
+function openBuilder(): void {
+  builderOpen.value = true;
+  aiError.value = '';
+}
+
+function closeBuilder(): void {
+  builderOpen.value = false;
+  preview.value = null;
+  aiError.value = '';
+  aiBusy.value = false;
+}
+
+/** AI 生成 → 规范化 → 预览 */
+async function generate(): Promise<void> {
+  const text = aiInput.value.trim();
+  if (!text) return;
+  if (!core.ai.isLive()) {
+    aiError.value = '还没接入 AI：先去「设置」配好模型，或改用手动填写。';
+    return;
+  }
+  aiBusy.value = true;
+  aiError.value = '';
+  preview.value = null;
+
+  const r = await core.ai.chat([
+    { role: 'system', content: buildAiPrompt(allNodes.value.map((n) => ({ id: n.id, name: n.name, kind: n.kind }))) },
+    { role: 'user', content: text },
+  ]);
+  aiBusy.value = false;
+
+  if (!r.ok) {
+    aiError.value = `模型没回应（${r.reason}）`;
+    return;
+  }
+  const parsed = parseAiGraph(
+    r.reply.text,
+    new Set(allNodes.value.map((n) => n.id)),
+    new Set(allNodes.value.map((n) => n.name)),
+  );
+  if (!parsed.ok) {
+    aiError.value = `模型输出不合格：${parsed.reason}。可以换个说法再试一次。`;
+    return;
+  }
+  preview.value = { nodes: parsed.nodes, edges: parsed.edges, warnings: parsed.warnings };
+}
+
+/** 手动表单 → 规范化 → 预览（与 AI 路共用一个校验漏斗） */
+function previewManual(): void {
+  const name = form.value.name.trim();
+  if (!name) {
+    aiError.value = '至少要有个名字';
+    return;
+  }
+  aiError.value = '';
+  const taken = new Set(allNodes.value.map((n) => n.id));
+  const id = nameToId(name, taken);
+  const nodes: Array<Partial<StarNode>> = [
+    { id, name, kind: form.value.kind, school: form.value.school, brief: form.value.brief, src: form.value.src },
+  ];
+  const edges: Array<{ from: string; to: string; rel: EdgeRelation; label: string }> = [];
+  if (form.value.toId) {
+    edges.push({ from: id, to: form.value.toId, rel: form.value.rel, label: form.value.label });
+  }
+  const r = parseAiGraph(
+    JSON.stringify({ nodes, edges }),
+    taken,
+    new Set(allNodes.value.map((n) => n.name)),
+  );
+  if (!r.ok) {
+    aiError.value = r.reason;
+    return;
+  }
+  preview.value = { nodes: r.nodes, edges: r.edges, warnings: r.warnings };
+}
+
+/** 预览确认 → 落库 */
+function commitPreview(): void {
+  if (!preview.value) return;
+  const r = core.star.add(
+    { nodes: preview.value.nodes, edges: preview.value.edges },
+    STAR_NODES,
+  );
+  if (!r.ok) {
+    aiError.value = r.reason;
+    preview.value = null;
+    return;
+  }
+  graph.value = r.graph;
+  if (r.warnings.length) nav.toast(r.warnings[0]!);
+  const added = preview.value.nodes.length;
+  const addedEdges = preview.value.edges.length;
+  nav.toast(`已点亮星图：+${added} 节点 · +${addedEdges} 关系`);
+  closeBuilder();
+}
+
+/** 移除自定义节点（内置节点不可删） */
+function removeCustom(id: string): void {
+  if (!customIds.value.has(id)) return;
+  graph.value = core.star.removeNode(id);
+  selectedId.value = null;
+  nav.toast('已从星图移除');
+}
+
+/** 图变化后：新增节点补刚体、删除节点清刚体，并重扫 DOM 引用 */
+watch(allNodes, (nodes, prev) => {
+  const prevIds = new Set((prev ?? []).map((n) => n.id));
+  const added = nodes.filter((n) => !prevIds.has(n.id));
+  const next = { ...bodies.value };
+  if (added.length) Object.assign(next, initBodies(added, view.value));
+  const ids = new Set(nodes.map((n) => n.id));
+  for (const id of Object.keys(next)) {
+    if (!ids.has(id)) delete next[id];
+  }
+  bodies.value = next;
+  void nextTick().then(scanEls);
+});
+
+function scanEls(): void {
+  const svg = svgEl.value;
+  if (!svg) return;
+  nodeEls.clear();
+  lineEls.clear();
+  for (const el of svg.querySelectorAll<SVGGElement>('g.node')) {
+    const id = el.dataset.node;
+    if (id) nodeEls.set(id, el);
+  }
+  for (const el of svg.querySelectorAll<SVGLineElement>('line.edge')) {
+    const idx = Number(el.dataset.idx);
+    if (Number.isFinite(idx)) lineEls.set(idx, el);
+  }
 }
 
 /* ---------------- 生命周期 ---------------- */
@@ -373,14 +558,7 @@ onMounted(() => {
   window.addEventListener('resize', syncNarrow);
 
   // 结构由 Vue 渲染一次，之后帧循环直接操作这批元素
-  for (const el of svg.querySelectorAll<SVGGElement>('g.node')) {
-    const id = el.dataset.node;
-    if (id) nodeEls.set(id, el);
-  }
-  for (const el of svg.querySelectorAll<SVGLineElement>('line.edge')) {
-    const idx = Number(el.dataset.idx);
-    if (Number.isFinite(idx)) lineEls.set(idx, el);
-  }
+  scanEls();
 
   // 窄屏重新拟合视野。必须放在挂载之后 —— 这之前量不到容器尺寸。
   view.value = fitView(BASE_VIEW);
@@ -447,7 +625,7 @@ onBeforeUnmount(() => {
         </defs>
 
         <line
-          v-for="(e, i) in STAR_EDGES"
+          v-for="(e, i) in allEdges"
           :key="`e${i}`"
           class="edge"
           :class="e[2]"
@@ -456,10 +634,10 @@ onBeforeUnmount(() => {
         />
 
         <g
-          v-for="n in STAR_NODES"
+          v-for="n in allNodes"
           :key="n.id"
           class="node"
-          :class="[{ dim: hoverSet && !hoverSet.has(n.id) }, 'k-' + n.kind]"
+          :class="[{ dim: hoverSet && !hoverSet.has(n.id), mine: customIds.has(n.id) }, 'k-' + n.kind]"
           :data-node="n.id"
           @pointerdown="onNodeDown($event, n.id)"
           @pointermove="onNodeMove($event, n.id)"
@@ -489,11 +667,15 @@ onBeforeUnmount(() => {
       </svg>
 
       <div class="hud">
-        <span>已点亮 {{ litIds.length }} / {{ STAR_NODES.length }} · {{ litPct }}%</span>
+        <span>已点亮 {{ litIds.length }} / {{ allNodes.length }} · {{ litPct }}%</span>
         <span v-if="narrow" class="hud-tip">点节点看名字</span>
         <button type="button" @click="doRelayout">
           <Icon name="i-refresh" :size="13" />
           重新布局
+        </button>
+        <button type="button" @click="openBuilder">
+          <Icon name="i-plus" :size="13" />
+          共建星图
         </button>
       </div>
     </div>
@@ -515,18 +697,29 @@ onBeforeUnmount(() => {
           {{ KIND_LABEL[selected.kind] }} · {{ selected.school }} ·
           <b v-if="litIds.includes(selected.id)" class="on">已点亮</b>
           <span v-else class="off">盲区</span>
+          <b v-if="customIds.has(selected.id)" class="mine-tag">· 我添加的</b>
         </div>
         <p class="brief">{{ selected.brief }}</p>
         <p class="src">出处：{{ selected.src }}</p>
 
-        <button
-          v-if="!litIds.includes(selected.id)"
-          type="button"
-          class="btn"
-          @click="lightUp(selected.id)"
-        >
-          点亮此节点
-        </button>
+        <div class="btn-row">
+          <button
+            v-if="!litIds.includes(selected.id)"
+            type="button"
+            class="btn"
+            @click="lightUp(selected.id)"
+          >
+            点亮此节点
+          </button>
+          <button
+            v-if="customIds.has(selected.id)"
+            type="button"
+            class="btn danger"
+            @click="removeCustom(selected.id)"
+          >
+            移除此节点
+          </button>
+        </div>
 
         <div v-if="selectedRels.length" class="rels">
           <h4>关系网</h4>
@@ -537,7 +730,7 @@ onBeforeUnmount(() => {
             class="rel"
             @click="selectedId = r.other"
           >
-            <span>{{ STAR_NODES.find((n) => n.id === r.other)?.name ?? r.other }}</span>
+            <span>{{ allNodes.find((n) => n.id === r.other)?.name ?? r.other }}</span>
             <span class="rel-meta">
               {{ r.direction }} {{ RELATION_NAME[r.relation] }}
               <template v-if="r.note"> · {{ r.note }}</template>
@@ -555,6 +748,106 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </aside>
+
+    <!-- 星图共建弹窗：AI 规范化 / 手动填写 双路进同一个校验漏斗 -->
+    <div v-if="builderOpen" class="builder" @click.self="closeBuilder">
+      <div class="builder-card">
+        <div class="builder-head">
+          <h3>共建星图</h3>
+          <button type="button" class="x" @click="closeBuilder">
+            <Icon name="i-minus" :size="14" />
+          </button>
+        </div>
+
+        <div class="mode-tabs">
+          <button type="button" :class="{ on: builderMode === 'ai' }" @click="builderMode = 'ai'">
+            AI 帮我建
+          </button>
+          <button type="button" :class="{ on: builderMode === 'manual' }" @click="builderMode = 'manual'">
+            手动填写
+          </button>
+        </div>
+
+        <template v-if="builderMode === 'ai'">
+          <p class="hint">
+            用自己的话说想加什么，AI 会把它规范化成星图节点并连好关系。例如：
+            「把忒修斯之船和同一性问题加进来，跟休谟的因果关系有点关联」
+          </p>
+          <textarea
+            v-model="aiInput"
+            rows="4"
+            placeholder="描述你想加的概念、人物、它们之间的关系…"
+          />
+          <div class="act-row">
+            <button type="button" class="btn" :disabled="aiBusy || !aiInput.trim()" @click="generate">
+              {{ aiBusy ? '正在规范化…' : '生成预览' }}
+            </button>
+            <span v-if="!aiLive" class="warn">未接入 AI · 可先去设置配置，或改用手动填写</span>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="form-grid">
+            <label>名称<input v-model="form.name" maxlength="30" placeholder="如：忒修斯之船" /></label>
+            <label>类型
+              <select v-model="form.kind">
+                <option value="concept">概念</option>
+                <option value="figure">人物</option>
+                <option value="method">方法论</option>
+                <option value="school">流派</option>
+              </select>
+            </label>
+            <label>脉络<input v-model="form.school" maxlength="20" placeholder="留空归入「我的星区」" /></label>
+            <label>出处<input v-model="form.src" maxlength="60" placeholder="书名 / 思想来源" /></label>
+          </div>
+          <label class="full">一句话释义<textarea v-model="form.brief" rows="2" maxlength="200" placeholder="这个概念在讲什么？" /></label>
+          <div class="edge-row">
+            <label>连到
+              <select v-model="form.toId">
+                <option value="">（暂不连边）</option>
+                <option v-for="n in allNodes" :key="n.id" :value="n.id">{{ n.name }}</option>
+              </select>
+            </label>
+            <label>关系
+              <select v-model="form.rel" :disabled="!form.toId">
+                <option value="proposes">提出</option>
+                <option value="refines">修正</option>
+                <option value="inherits">继承</option>
+                <option value="opposes">反对</option>
+              </select>
+            </label>
+            <label class="grow">说明<input v-model="form.label" maxlength="40" placeholder="一句话说明这层关系" :disabled="!form.toId" /></label>
+          </div>
+          <div class="act-row">
+            <button type="button" class="btn" @click="previewManual">生成预览</button>
+          </div>
+        </template>
+
+        <p v-if="aiError" class="err">{{ aiError }}</p>
+
+        <!-- 预览：确认才入库 -->
+        <template v-if="preview">
+          <div class="preview">
+            <h4>预览 · 确认后入库</h4>
+            <div v-for="n in preview.nodes" :key="n.id" class="pv-node">
+              <b>{{ n.name }}</b>
+              <span class="pv-meta">{{ KIND_LABEL[n.kind] }} · {{ n.school }}</span>
+              <p>{{ n.brief }}</p>
+            </div>
+            <div v-for="(e, i) in preview.edges" :key="`pe${i}`" class="pv-edge">
+              {{ allNodes.find((n) => n.id === e[0])?.name ?? e[0] }}
+              — {{ RELATION_NAME[e[2]] }} →
+              {{ allNodes.find((n) => n.id === e[1])?.name ?? e[1] }}
+              <em v-if="e[3]">（{{ e[3] }}）</em>
+            </div>
+            <p v-for="(w, i) in preview.warnings" :key="`w${i}`" class="warn">⚠ {{ w }}</p>
+            <button type="button" class="btn" @click="commitPreview">
+              入库（{{ preview.nodes.length }} 节点 · {{ preview.edges.length }} 关系）
+            </button>
+          </div>
+        </template>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -949,6 +1242,285 @@ onBeforeUnmount(() => {
   .hud button {
     gap: 4px;
     font-size: 11px;
+  }
+}
+
+/* ============================================================
+ * 星图共建（3.5.0）
+ * ============================================================ */
+
+/* 自定义节点：给光点外圈一道虚线环，跟内置的区分开 */
+.node.mine .ring {
+  opacity: 0.55;
+  stroke-dasharray: 3 3;
+  stroke: var(--gold, #d9a06b);
+}
+
+.mine-tag {
+  color: var(--gold, #d9a06b);
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-row .btn {
+  margin-bottom: 14px;
+  flex: 1;
+}
+
+.btn.danger {
+  background: transparent;
+  border: 1px solid var(--rose, #b0483f);
+  color: var(--rose, #b0483f);
+}
+
+/* ---------- 共建弹窗 ---------- */
+
+.builder {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.builder-card {
+  width: min(520px, calc(100% - 32px));
+  max-height: min(86vh, 640px);
+  overflow-y: auto;
+  padding: 18px 20px 20px;
+  border-radius: var(--radius-md, 14px);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-pop, 0 18px 48px rgba(0, 0, 0, 0.4));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.builder-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.builder-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.builder-head .x {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink3);
+}
+
+.builder-head .x:hover {
+  background: var(--card-hi);
+  color: var(--ink);
+}
+
+.builder-head .x svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--field);
+}
+
+.mode-tabs button {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--ink2);
+}
+
+.mode-tabs button.on {
+  background: var(--card);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink3);
+}
+
+.builder textarea,
+.builder input,
+.builder select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.builder textarea {
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.builder label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--ink3);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.form-grid label.full {
+  grid-column: 1 / -1;
+}
+
+label.full {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--ink3);
+}
+
+.edge-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.edge-row .grow {
+  flex: 1;
+}
+
+.act-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.act-row .btn {
+  width: auto;
+  padding: 8px 18px;
+  margin-bottom: 0;
+}
+
+.act-row .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.warn {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--gold, #d9a06b);
+}
+
+.err {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs, 6px);
+  background: rgba(176, 72, 63, 0.12);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--rose, #b0483f);
+}
+
+.preview {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview h4 {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink3);
+  letter-spacing: 0.04em;
+}
+
+.pv-node {
+  padding: 9px 11px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--field);
+  font-size: 12.5px;
+}
+
+.pv-node b {
+  font-weight: 500;
+}
+
+.pv-meta {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+.pv-node p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--ink2);
+}
+
+.pv-edge {
+  padding: 6px 11px;
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+.pv-edge em {
+  font-style: normal;
+  color: var(--ink3);
+}
+
+@media (max-width: 760px) {
+  .builder {
+    align-items: flex-end;
+  }
+
+  .builder-card {
+    width: 100%;
+    max-height: 78vh;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .edge-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>
