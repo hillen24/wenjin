@@ -1,0 +1,31 @@
+# 依赖与构建产物
+node_modules/
+dist/
+dist[0-9]/
+build/
+out/
+release/
+
+# Capacitor / Android 生成物（跑 npm run add:android 自行生成）
+android/
+ios/
+.gradle/
+local.properties
+*.keystore
+*.jks
+
+# 可执行产物不入库
+*.exe
+*.apk
+*.aab
+*.dmg
+*.AppImage
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+npm-debug.log*

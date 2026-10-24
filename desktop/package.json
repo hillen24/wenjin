@@ -1,0 +1,34 @@
+{
+  "name": "wenjin-desktop",
+  "version": "2.0.0",
+  "description": "问津 · 思想栖所 —— 电脑版（Electron 单文件封装）",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "author": "hillen24",
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "cn.wenjin.desktop",
+    "productName": "问津",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "www/**/*"
+    ],
+    "win": {
+      "target": "portable",
+      "executableName": "electron"
+    },
+    "portable": {
+      "artifactName": "wenjin-desktop-${version}.exe"
+    }
+  }
+}

@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>问津 · 思想栖所 v2.0</title>
+<style>
+/* ============================================================
+   问津 v2.0 · 思想栖所 —— Apple 质感设计系统
+   深夜壳 / 白日桌 双主题 · hairline 边 + 柔和投影 +  vibrancy 材质
+   品牌朱砂 / 青玉 / 钢蓝 / 暖金 · 纸卡阅读区 · SF 风格矢量图标
+   ============================================================ */
+:root{
+  /* ---- 共用结构 token ---- */
+  --radius:16px; --radius-sm:10px; --radius-xs:8px;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,"JetBrains Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif;
+  --ease:cubic-bezier(.32,.72,0,1);
+  /* 旧 token 别名（JS 内联引用兼容） */
+  --ochre-soft:rgba(255,106,77,.14);
+  --teal-soft:rgba(79,209,197,.13);
+}
+/* ================= 深色主题（默认 · 深夜壳） ================= */
+:root,:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0B0E14; --bg2:#0E1320;
+  --card:#141A28; --card-hi:#1B2436; --field:#0E1320; --field-2:#161E2E; --bubble-me:#27334C;
+  --line:rgba(148,163,184,.13); --line-hi:rgba(148,163,184,.28);
+  --ink:#E9EDF4; --ink2:#98A4B8; --ink3:#5D6880;
+  --accent:#FF6A4D; --accent-hi:#FF8A70; --accent-soft:rgba(255,106,77,.14); --accent-ink:#fff;
+  --jade:#4FD1C5; --jade-deep:#2FA39A; --jade-soft:rgba(79,209,197,.13);
+  --rose:#FB7185; --gold:#E8B84B; --steel:#7DA7D9;
+  --ochre:#FF6A4D; --teal:#4FD1C5; --red:#FB7185;
+  --paper:#F6F4EE; --paper-card:#FFFFFF; --paper-ink:#23262D; --paper-ink2:#6E7480; --paper-line:#E4E0D3; --paper-accent:#C24A2E;
+  --sh-card:0 1px 2px rgba(0,0,0,.22),0 10px 28px rgba(0,0,0,.26);
+  --sh-pop:0 18px 50px rgba(0,0,0,.52);
+  --sb-bg:rgba(11,14,20,.78);
+  --mask:rgba(7,10,16,.66);
+  /* 星图（深空） */
+  --star-bg:
+    radial-gradient(ellipse 55% 50% at 50% 42%, rgba(255,106,77,.075), transparent 70%),
+    radial-gradient(ellipse 85% 75% at 50% 112%, rgba(79,209,197,.05), transparent 60%),
+    radial-gradient(circle at 50% 45%, #151D2E 0%, #0B0E14 80%);
+  --star-dot:rgba(148,163,184,.10);
+  --n-method:#FF6A4D; --n-school:#7DA7D9; --n-figure:#4FD1C5; --n-concept:#A8B3C4;
+  --n-off:rgba(148,163,184,.10); --n-off-line:rgba(148,163,184,.55);
+  --star-ink:#E9EDF4; --star-ink-off:#5D6880;
+  --star-edge:rgba(148,163,184,.42); --star-edge-oppose:#FB7185;
+  --star-legend-bg:rgba(19,26,40,.78);
+  /* 格物卡（暖金深夜卡） */
+  --gw-grad:linear-gradient(135deg,#1B2436,#141B29); --gw-line:rgba(232,184,75,.28); --gw-line-soft:rgba(232,184,75,.20);
+}
+/* ================= 浅色主题（白日桌 · Apple 灰） ================= */
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#F5F5F7; --bg2:#EDEDF0;
+  --card:#FFFFFF; --card-hi:#F7F7F9; --field:#F2F2F5; --field-2:#EBEBEF; --bubble-me:#FFE8E1;
+  --line:rgba(0,0,0,.07); --line-hi:rgba(0,0,0,.14);
+  --ink:#1D1D1F; --ink2:#6E6E73; --ink3:#AEAEB2;
+  --accent:#E0452A; --accent-hi:#C73A22; --accent-soft:rgba(224,69,42,.09); --accent-ink:#fff;
+  --jade:#12948A; --jade-deep:#0E7A72; --jade-soft:rgba(18,148,138,.10);
+  --rose:#E11D48; --gold:#A67C00; --steel:#3D6FA8;
+  --ochre:#E0452A; --teal:#12948A; --red:#E11D48;
+  --paper:#FFFDF8; --paper-card:#FFFFFF; --paper-ink:#1D1D1F; --paper-ink2:#75757C; --paper-line:#ECE7DC; --paper-accent:#C24A2E;
+  --sh-card:0 1px 2px rgba(0,0,0,.04),0 10px 28px rgba(0,0,0,.07);
+  --sh-pop:0 18px 50px rgba(0,0,0,.18);
+  --sb-bg:rgba(245,245,247,.80);
+  --mask:rgba(0,0,0,.32);
+  /* 星图（白日星图 · 淡青灰纸上天文图） */
+  --star-bg:
+    radial-gradient(ellipse 60% 55% at 50% 40%, rgba(61,111,168,.07), transparent 70%),
+    radial-gradient(ellipse 90% 80% at 50% 115%, rgba(224,69,42,.05), transparent 62%),
+    radial-gradient(circle at 50% 45%, #FBFCFE 0%, #E9EDF3 85%);
+  --star-dot:rgba(15,23,42,.06);
+  --n-method:#E0452A; --n-school:#3D6FA8; --n-figure:#12948A; --n-concept:#64748B;
+  --n-off:rgba(15,23,42,.05); --n-off-line:rgba(15,23,42,.26);
+  --star-ink:#1D1D1F; --star-ink-off:#94A0B4;
+  --star-edge:rgba(15,23,42,.22); --star-edge-oppose:#E11D48;
+  --star-legend-bg:rgba(255,255,255,.82);
+  /* 格物卡（暖金纸卡） */
+  --gw-grad:linear-gradient(135deg,#FFFDF4,#FFF6DE); --gw-line:rgba(166,124,0,.32); --gw-line-soft:rgba(166,124,0,.20);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.7;
+  transition:background-color .35s var(--ease),color .35s var(--ease);
+  font-feature-settings:"tnum" 0;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.serif{font-family:var(--serif)}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:14px}
+input,textarea{color:var(--ink)}
+::selection{background:rgba(255,106,77,.30)}
+:root[data-theme="light"] ::selection{background:rgba(224,69,42,.22)}
+/* Apple 式覆盖滚动条 */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--line-hi);border-radius:4px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--ink3);background-clip:content-box;border:2px solid transparent}
+::-webkit-scrollbar-track,.::-webkit-scrollbar-corner{background:transparent}
+/* 焦点环（Apple 式柔环） */
+:focus-visible{outline:none;box-shadow:0 0 0 4px var(--accent-soft)}
+
+/* ---------- 骨架：左竖列导航 + 各 tab 内部主辅双列 ---------- */
+body{height:100vh;display:flex;overflow:hidden;background:var(--bg)}
+.sidebar{width:216px;flex:none;background:var(--sb-bg);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
+  border-right:1px solid var(--line);color:var(--ink);display:flex;flex-direction:column;padding:20px 0 14px;z-index:30;
+  transition:background-color .35s var(--ease),border-color .35s var(--ease)}
+.sb-brand{display:flex;align-items:center;gap:11px;padding:0 16px 16px;border-bottom:1px solid var(--line)}
+.sb-brand .seal{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:none;
+  background:linear-gradient(135deg,var(--accent),#E8452A);color:#fff;font-size:15px;font-weight:600;border-radius:10px;
+  box-shadow:0 4px 14px rgba(255,106,77,.35);letter-spacing:0}
+.sb-brand b{display:block;font-size:16px;letter-spacing:6px;font-weight:700;margin-left:-2px}
+.sb-brand small{display:block;font-size:9.5px;color:var(--ink3);letter-spacing:1.6px;margin-top:2px;font-family:var(--mono)}
+.sb-nav{flex:1;display:flex;flex-direction:column;gap:2px;padding:14px 10px;overflow-y:auto}
+.sb-nav button{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--radius-sm);font-size:13.5px;color:var(--ink2);
+  transition:background-color .18s var(--ease),color .18s var(--ease);text-align:left;width:100%}
+.sb-nav button .ic{width:19px;height:19px;color:var(--ink3);transition:color .18s var(--ease)}
+.sb-nav button:hover{background:rgba(148,163,184,.08);color:var(--ink)}
+:root[data-theme="light"] .sb-nav button:hover{background:rgba(0,0,0,.045)}
+.sb-nav button.on{background:var(--card-hi);color:var(--ink);font-weight:600}
+.sb-nav button.on .ic{color:var(--accent)}
+.sb-foot{padding:12px 16px 0;border-top:1px solid var(--line);font-size:10.5px;color:var(--ink3);line-height:1.7}
+.sb-theme{display:flex;align-items:center;gap:8px;width:100%;margin-bottom:10px;font-size:12px;color:var(--ink2);
+  padding:7px 12px;border-radius:20px;background:var(--card);border:1px solid var(--line);transition:all .18s var(--ease)}
+.sb-theme:hover{color:var(--ink);border-color:var(--line-hi)}
+.sb-theme .ic{width:15px;height:15px;color:var(--gold)}
+.sb-mode{display:inline-flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;padding:4px 10px;border-radius:20px;background:var(--card);border:1px solid var(--line)}
+.sb-mode .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.sb-mode .dot.ok{background:var(--jade);box-shadow:0 0 8px rgba(79,209,197,.7)}
+.sb-mode .dot.warn{background:var(--gold)}
+.stage{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+main{flex:1;overflow-y:auto;padding:20px 24px 36px;min-width:0}
+section.tab{display:none}
+section.tab.on{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.hint{color:var(--ink3);font-size:12.5px;margin-bottom:14px}
+.hint b{color:var(--accent);font-weight:500}
+.hint .ic{width:13px;height:13px;vertical-align:-2px}
+
+/* ---------- 图标基类（SF Symbols 风格） ---------- */
+.ic{width:1.15em;height:1.15em;flex:none;vertical-align:-.22em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ic.block{display:block}
+
+/* ---------- 星图 ---------- */
+.star-wrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;height:calc(100vh - 128px)}
+.star-canvas{height:100%;min-height:0;border:1px solid var(--line);border-radius:var(--radius);position:relative;overflow:hidden;
+  background:var(--star-bg);box-shadow:var(--sh-card);transition:border-color .35s var(--ease)}
+.star-canvas::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background-image:radial-gradient(circle,var(--star-dot) 1px,transparent 1px);background-size:28px 28px}
+.star-canvas svg{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+.star-canvas svg.panning{cursor:grabbing}
+.star-canvas svg:active{cursor:grabbing}
+.star-legend{position:absolute;left:14px;bottom:12px;display:flex;gap:14px;font-size:11.5px;color:var(--ink2);
+  background:var(--star-legend-bg);backdrop-filter:blur(10px);padding:6px 12px;border-radius:9px;border:1px solid var(--line)}
+.star-legend i{display:inline-block;width:16px;height:0;border-top:2px solid;margin-right:5px;vertical-align:3px}
+.star-legend .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px;border:none}
+.star-legend .dot.lit{background:var(--accent)}
+.star-legend .dot.off{border:1px solid var(--n-off-line);background:transparent}
+.star-side{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--sh-card);
+  transition:background-color .35s var(--ease),border-color .35s var(--ease)}
+.panel h3{font-size:15px;margin-bottom:4px}
+.panel .kind{font-size:11.5px;color:var(--ink3);margin-bottom:8px}
+.panel .brief{color:var(--ink2);font-size:13px;margin-bottom:10px}
+.panel .src{font-size:12px;color:var(--ink3);margin-bottom:12px}
+.jump-row{display:flex;flex-direction:column;gap:7px;margin:12px 0 4px}
+.jump-btn{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:9px 13px;border-radius:var(--radius-sm);font-size:13px;
+  border:1px solid var(--line);background:var(--field);color:var(--ink);transition:all .15s var(--ease)}
+.jump-btn:hover{border-color:var(--accent);background:var(--accent-soft);transform:translateX(2px)}
+.jump-btn .ic{width:16px;height:16px;color:var(--ink2)}
+.jump-btn:hover .ic{color:var(--accent)}
+.jump-btn small{display:block;font-size:11px;color:var(--ink3);line-height:1.4}
+.jump-btn:disabled,.jump-btn.off{opacity:.45;cursor:not-allowed}
+.jump-btn.off:hover{transform:none;border-color:var(--line);background:var(--field)}
+.jump-btn.hot{border-color:var(--accent);background:var(--accent-soft)}
+.jump-btn.hot .ic{color:var(--accent)}
+.jump-btn.hot:hover{border-color:var(--accent)}
+.rel-list{margin-top:12px;border-top:1px dashed var(--line-hi);padding-top:10px}
+.rel-list h5{font-size:12px;color:var(--accent);letter-spacing:1px;margin-bottom:7px}
+.rel-item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);padding:5px 8px;border-radius:7px;cursor:pointer;transition:background-color .15s}
+.rel-item:hover{background:var(--accent-soft);color:var(--accent)}
+.rel-item .arr{color:var(--ink3);font-size:11px;margin-left:auto}
+.chip{display:inline-block;font-size:12px;padding:2px 10px;border-radius:20px;background:var(--accent-soft);color:var(--accent);
+  margin:0 6px 6px 0;border:1px solid transparent;transition:all .15s;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip.entry{background:var(--jade-soft);color:var(--jade)}
+.chip.entry:hover{border-color:var(--jade)}
+.chip.lit{background:transparent;border:1px dashed var(--line-hi);color:var(--ink3)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 18px;border-radius:var(--radius-sm);font-size:13.5px;
+  background:var(--accent);color:var(--accent-ink);font-weight:500;transition:all .18s var(--ease);box-shadow:0 2px 10px rgba(255,106,77,.22)}
+.btn:hover{background:var(--accent-hi);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn .ic{width:14px;height:14px}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent);box-shadow:none}
+.btn.ghost:hover{background:var(--accent-soft)}
+.btn.ochre{background:var(--accent)}
+.btn.teal{background:var(--jade);color:#fff;box-shadow:0 2px 10px rgba(79,209,197,.18)}
+.btn.sm{padding:5px 12px;font-size:12.5px}
+.blind{padding:14px 16px}
+.blind h4{font-size:13px;margin-bottom:8px;color:var(--ink2)}
+.blind .row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12.5px}
+.blind .row span{width:64px;flex:none;color:var(--ink2)}
+.blind .bar{flex:1;height:7px;background:rgba(148,163,184,.12);border-radius:4px;overflow:hidden}
+:root[data-theme="light"] .blind .bar{background:rgba(0,0,0,.07)}
+.blind .bar i{display:block;height:100%;background:var(--jade);border-radius:4px;transition:width .5s ease}
+.blind .bar i.low{background:var(--accent)}
+.blind .row b{width:34px;text-align:right;font-weight:500;color:var(--ink2);font-family:var(--mono)}
+/* 星图节点（主题感知） */
+g.node circle.dot{transition:r .15s ease,filter .2s ease}
+g.node:hover circle.dot{r:17}
+g.node.dragging circle.dot{filter:drop-shadow(0 0 10px rgba(255,106,77,.9))}
+g.node text{pointer-events:none;font-family:inherit}
+g.node circle.dot.k-school{fill:var(--n-school)} g.node circle.dot.k-figure{fill:var(--n-figure)}
+g.node circle.dot.k-method{fill:var(--n-method)} g.node circle.dot.k-concept{fill:var(--n-concept)}
+g.node circle.dot:not(.lit){fill:var(--n-off);stroke:var(--n-off-line)}
+g.node circle.dot.lit{stroke:var(--bg)}
+g.node text.lit{fill:var(--star-ink)} g.node text:not(.lit){fill:var(--star-ink-off)}
+g.node text.k-method.lit{font-weight:600}
+g.node circle.ring{stroke:var(--accent)}
+line.e-proposes{stroke:var(--star-edge)} line.e-inherits{stroke:var(--star-edge)}
+line.e-opposes{stroke:var(--star-edge-opposes)} line.e-refines{stroke:var(--star-edge)}
+
+/* ---------- 伴读（纸）+ AI（深夜玻璃） ---------- */
+.read-wrap{display:grid;grid-template-columns:186px minmax(0,1fr) 340px;gap:14px;height:calc(100vh - 128px)}
+.doc-list{width:178px;flex:none;display:flex;flex-direction:column;gap:8px}
+.doc-list button{text-align:left;padding:11px 14px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card);
+  font-size:13.5px;color:var(--ink);transition:all .15s var(--ease)}
+.doc-list button.on{border-color:var(--accent);color:var(--accent);font-weight:600;background:var(--accent-soft)}
+.doc-list small{display:block;color:var(--ink3);font-size:11.5px;font-weight:400}
+.doc-main{flex:1;min-height:0;background:var(--paper);border:1px solid var(--paper-line);border-radius:var(--radius);padding:26px 34px;
+  overflow-y:auto;color:var(--paper-ink);box-shadow:var(--sh-card);transition:background-color .35s var(--ease)}
+.doc-main h2{font-size:19px;margin-bottom:4px;color:var(--paper-ink)}
+.doc-main .meta{color:var(--paper-ink2);font-size:12.5px;margin-bottom:14px}
+.doc-main .doc-chips{padding-bottom:16px;border-bottom:1px dashed var(--paper-line);margin-bottom:18px;font-size:12px;color:var(--paper-ink2)}
+.doc-main p{font-size:var(--reader-fs,16px);line-height:2.1;margin-bottom:16px;text-align:justify;border-radius:6px;
+  transition:background .6s ease;padding:2px 6px;margin-left:-6px;position:relative;color:var(--paper-ink)}
+.doc-main p.flash{background:#FFE8B3;transition:none}
+.doc-main p::selection,.doc-main p *::selection{background:#F5D9A8}
+.doc-main .chip{background:rgba(194,74,46,.08);color:var(--paper-accent)}
+.doc-main .chip:hover{border-color:var(--paper-accent)}
+.ai-panel{height:100%;min-height:0;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px;box-shadow:var(--sh-card);transition:background-color .35s var(--ease),border-color .35s var(--ease)}
+.ai-panel .quote{font-size:12.5px;color:var(--ink2);border-left:3px solid var(--accent);padding-left:10px;margin-bottom:12px;font-style:italic}
+.bubble{background:var(--card-hi);border-radius:12px;padding:11px 14px;font-size:13.5px;margin-bottom:10px;white-space:pre-wrap;color:var(--ink)}
+.bubble .who{font-size:11px;color:var(--accent);font-weight:600;margin-bottom:3px;letter-spacing:1px}
+.bubble.me{background:var(--bubble-me);margin-left:12%}
+.lit-line{margin:10px 0 4px;font-size:12px;color:var(--ink2)}
+.act-line{background:rgba(232,184,75,.10);color:var(--gold);font-size:12.5px;border-radius:9px;padding:9px 12px;margin-top:10px;border:1px solid rgba(232,184,75,.22)}
+:root[data-theme="light"] .act-line{background:rgba(166,124,0,.07);border-color:rgba(166,124,0,.20)}
+.askbar{position:absolute;display:none;gap:6px;background:var(--field-2);border:1px solid var(--line-hi);border-radius:12px;padding:6px;
+  z-index:50;box-shadow:var(--sh-pop);backdrop-filter:blur(20px)}
+.askbar button{color:var(--ink);font-size:12.5px;padding:5px 11px;border-radius:8px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.askbar button .ic{width:13px;height:13px}
+.askbar button:hover{background:rgba(148,163,184,.14)}
+:root[data-theme="light"] .askbar button:hover{background:rgba(0,0,0,.06)}
+.askbar button.primary{background:var(--accent);color:var(--accent-ink)}
+.chat-input{display:flex;gap:8px;margin-top:10px}
+.chat-input input{flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:var(--field);color:var(--ink)}
+.chat-input input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.chat-input input::placeholder{color:var(--ink3)}
+.quick-opts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.quick-opts button{font-size:12.5px;padding:5px 12px;border:1px solid var(--accent);color:var(--accent);border-radius:20px;transition:all .15s}
+.quick-opts button:hover{background:var(--accent);color:var(--accent-ink)}
+
+/* ---------- 方法论库 ---------- */
+.method-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(245px,1fr));gap:14px}
+.m-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px 14px;cursor:pointer;
+  transition:transform .18s var(--ease),box-shadow .18s var(--ease),border-color .18s var(--ease);position:relative;overflow:hidden;box-shadow:var(--sh-card)}
+.m-card::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:var(--jade)}
+.m-card.think::before{background:var(--steel)}
+.m-card.debate::before{background:var(--accent)}
+.m-card:hover{transform:translateY(-3px);box-shadow:var(--sh-pop);border-color:var(--line-hi)}
+.m-card .cat{font-size:11px;letter-spacing:1px;margin-bottom:6px;font-family:var(--mono)}
+.m-card h4{font-size:15px;margin-bottom:5px}
+.m-card p{font-size:12.5px;color:var(--ink2);margin-bottom:8px}
+.m-card .links{font-size:11px;color:var(--ink3);display:flex;gap:10px}
+.m-card .links .ic{width:11px;height:11px;vertical-align:-1px;margin-right:3px}
+.cat-life{color:var(--jade)}.cat-think{color:var(--steel)}.cat-debate{color:var(--accent)}
+.modal-mask{position:fixed;inset:0;background:var(--mask);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-mask.on{display:flex;animation:fade .2s ease}
+.modal{background:var(--card);border:1px solid var(--line-hi);border-radius:20px;max-width:580px;width:100%;max-height:88vh;overflow:auto;
+  padding:28px 32px;position:relative;box-shadow:var(--sh-pop)}
+.modal .close{position:absolute;top:14px;right:16px;color:var(--ink3);padding:4px 10px;border-radius:8px;transition:all .15s}
+.modal .close .ic{width:16px;height:16px;display:block}
+.modal .close:hover{color:var(--ink);background:var(--card-hi)}
+.modal h3{font-size:20px;margin-bottom:2px}
+.modal .sub{color:var(--ink3);font-size:12.5px;margin-bottom:18px}
+.modal h5{font-size:13px;color:var(--accent);margin:14px 0 6px;letter-spacing:1px}
+.modal ol{padding-left:20px;font-size:13.5px}
+.modal ol li{margin-bottom:5px}
+.misuse{background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.32);color:#FDA4AF;font-size:13px;border-radius:9px;padding:10px 14px}
+:root[data-theme="light"] .misuse{background:rgba(225,29,72,.05);border-color:rgba(225,29,72,.25);color:#BE123C}
+.modal .src{margin-top:16px;font-size:12px;color:var(--ink3)}
+.modal .jump-row{flex-direction:row;flex-wrap:wrap;margin-top:18px;padding-top:16px;border-top:1px dashed var(--line-hi)}
+.modal .jump-btn{width:auto;flex:1;min-width:140px}
+
+/* ---------- 格物 ---------- */
+.gewu-wrap{display:grid;grid-template-columns:minmax(0,1fr) 286px;gap:16px;align-items:start}
+.gewu-main{flex:1;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px 30px;min-height:calc(100vh - 128px);
+  box-shadow:var(--sh-card);transition:background-color .35s var(--ease),border-color .35s var(--ease)}
+.gewu-main h2{font-size:18px;margin-bottom:4px}
+.gewu-main .sub{color:var(--ink3);font-size:12.5px;margin-bottom:20px}
+.entry-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:18px}
+.pick{display:flex;align-items:flex-start;gap:10px;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:var(--field);color:var(--ink);transition:all .15s var(--ease)}
+.pick:hover{border-color:var(--accent)}
+.pick.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
+.pick .eid{font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:5px;padding:1px 7px;flex:none;margin-top:2px;font-family:var(--mono)}
+.pick .nm{font-size:13.5px;font-weight:600}
+.pick .on1{font-size:11.5px;color:var(--ink2);line-height:1.5;display:block;margin-top:2px}
+.chat{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+.msg{max-width:82%;padding:11px 16px;border-radius:14px;font-size:13.5px;white-space:pre-wrap;animation:fade .3s ease}
+.msg.ai{background:var(--card-hi);align-self:flex-start;border-top-left-radius:4px}
+.msg.me{background:var(--bubble-me);align-self:flex-end;border-top-right-radius:4px}
+.msg .who{font-size:11px;color:var(--accent);font-weight:600;margin-bottom:3px;letter-spacing:1px}
+.sort-col{border:1px dashed var(--line-hi);border-radius:var(--radius-sm);padding:12px 14px}
+.sort-col h5{font-size:13px;margin-bottom:8px}
+.sort-col.ctrl h5{color:var(--jade)}.sort-col.unctrl h5{color:var(--accent)}
+.sort-item{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;background:var(--field);border:1px solid var(--line);
+  border-radius:8px;margin-bottom:6px;cursor:pointer;user-select:none;transition:all .15s;color:var(--ink)}
+.sort-item:hover{border-color:var(--accent);transform:translateX(2px)}
+.sort-item .tag{margin-left:auto;font-size:11px;color:var(--ink3)}
+.gw-card{background:var(--gw-grad);border:1px solid var(--gw-line);border-radius:14px;padding:22px 26px;animation:fade .4s ease;box-shadow:var(--sh-card)}
+.gw-card h4{font-size:16px;margin-bottom:12px;letter-spacing:1px;color:var(--gold);display:flex;align-items:center;gap:8px}
+.gw-card h4 .ic{width:17px;height:17px}
+.gw-card .row{margin-bottom:12px}
+.gw-card .lab{font-size:12px;color:var(--ink3);margin-bottom:3px}
+.gw-card .val{font-size:14px;color:var(--ink)}
+.gw-card .next{background:var(--field);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:13.5px;color:var(--ink)}
+.gw-card .card-jumps{display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:1px dashed var(--gw-line-soft);flex-wrap:wrap}
+.gewu-side{display:flex;flex-direction:column;gap:12px}
+.stat-row{display:flex;gap:8px;margin-bottom:4px}
+.stat{flex:1;text-align:center;padding:10px 4px;background:var(--field);border:1px solid var(--line);border-radius:var(--radius-sm)}
+.stat b{display:block;font-size:19px;font-weight:650;color:var(--accent);font-family:var(--mono);font-variant-numeric:tabular-nums}
+.stat span{font-size:11px;color:var(--ink3)}
+.mini-card{background:var(--gw-grad);border:1px solid var(--gw-line-soft);border-radius:var(--radius-sm);padding:13px 15px;font-size:12.5px;
+  cursor:pointer;transition:transform .15s var(--ease);color:var(--ink)}
+.mini-card:hover{transform:translateY(-2px)}
+.mini-card .d{font-size:11px;color:var(--ink3);margin-bottom:4px;font-family:var(--mono)}
+.mini-card .t{font-weight:600;margin-bottom:5px}
+.toast{position:fixed;left:50%;bottom:36px;transform:translateX(-50%) translateY(20px);background:var(--field-2);border:1px solid var(--line-hi);
+  color:var(--ink);padding:11px 22px;border-radius:12px;font-size:13.5px;opacity:0;transition:all .3s var(--ease);z-index:200;pointer-events:none;
+  max-width:80vw;box-shadow:var(--sh-pop);backdrop-filter:blur(20px)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- v0.4 响应式 ---------- */
+@media (max-width:1180px){.star-wrap,.read-wrap,.debate-wrap{height:auto}.star-wrap{grid-template-columns:minmax(0,1fr) 264px}
+  .read-wrap{grid-template-columns:160px minmax(0,1fr) 300px}.debate-wrap{grid-template-columns:minmax(0,1fr) 208px}.star-canvas svg{height:460px}}
+@media (max-width:960px){
+  .sidebar{width:62px}
+  .sb-brand>div,.sb-foot{display:none}
+  .sb-brand{justify-content:center;padding:0 0 16px}
+  .sb-nav button{justify-content:center;padding:12px 0}
+  .sb-nav button span{display:none}
+  .star-wrap,.read-wrap,.gewu-wrap,.debate-wrap,.book-wrap{display:flex;flex-direction:column;height:auto}
+  .star-canvas svg{height:420px}
+  .doc-list{width:100%;flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  .book-main{padding:26px 22px}
+  .star-canvas svg{height:calc(100vh - 190px)}
+}
+/* ---------- 书架 / 朗读 ---------- */
+.doc-list .shelf-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:2px}
+.shelf-head>span{font-size:12px;color:var(--ink2);letter-spacing:2px}
+.doc-list .shelf-add{font-size:11.5px;color:var(--accent);border:1px dashed var(--accent);border-radius:7px;padding:3px 8px;background:transparent;
+  display:inline-flex;align-items:center;gap:4px}
+.doc-list .shelf-add .ic{width:11px;height:11px}
+.doc-list .shelf-add:hover{background:var(--accent-soft)}
+.doc-list .book-btn{padding:9px 12px;font-size:13px}
+.doc-list .book-btn small{font-size:11px}
+.book-del{font-size:10px;color:var(--ink3);border-bottom:1px dotted var(--ink3);margin-left:4px}
+.book-del:hover{color:var(--rose);border-color:var(--rose)}
+.doc-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+.read-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card);
+  border:1px solid var(--line);border-radius:var(--radius-sm);padding:7px 14px;box-shadow:var(--sh-card)}
+.rt-group{display:flex;gap:8px;align-items:center}
+.read-toolbar button{font-size:12.5px;padding:4px 12px;border:1px solid var(--line);border-radius:7px;background:var(--field);color:var(--ink2);
+  display:inline-flex;align-items:center;gap:5px;transition:all .15s}
+.read-toolbar button .ic{width:12px;height:12px}
+.read-toolbar button:hover{border-color:var(--accent);color:var(--accent)}
+.doc-main p.read{border-left:3px solid var(--jade-deep);padding-left:9px}
+.doc-main p.reading{background:rgba(255,106,77,.10)}
+.para-tts{position:absolute;right:0;top:0;font-size:11.5px;opacity:0;transition:opacity .15s;padding:2px 9px;border-radius:6px;
+  background:#EFE9DC;color:#8A6D3B;display:inline-flex;align-items:center;gap:4px}
+.para-tts .ic{width:11px;height:11px}
+.doc-main p:hover .para-tts{opacity:1}
+
+/* ---------- 论道 ---------- */
+.debate-wrap{display:grid;grid-template-columns:minmax(0,1fr) 234px;gap:14px;height:calc(100vh - 128px)}
+.phil-list{display:flex;flex-direction:column;gap:8px;min-height:0;overflow-y:auto}
+.phil-btn{display:flex;align-items:center;gap:10px;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:var(--card);color:var(--ink);transition:all .15s var(--ease)}
+.phil-btn:hover{border-color:var(--accent)}
+.phil-btn.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
+.phil-btn .av{width:36px;height:36px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;
+  font-weight:600;flex:none;border:1px solid var(--line-hi);box-shadow:inset 0 1px 1px rgba(255,255,255,.18),0 2px 6px rgba(0,0,0,.25)}
+.phil-btn .nm{font-size:13px;font-weight:600}
+.phil-btn .era{font-size:10.5px;color:var(--ink3);font-family:var(--mono)}
+.debate-main{height:100%;min-height:0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;
+  box-shadow:var(--sh-card);transition:background-color .35s var(--ease),border-color .35s var(--ease)}
+.debate-head{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.debate-head h3{font-size:16px}
+.debate-head .style{font-size:11.5px;color:var(--ink3);letter-spacing:1px}
+.debate-chat{flex:1;min-height:0;padding:20px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+.debate-input{padding:14px 20px;border-top:1px solid var(--line)}
+.d-quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.d-quick button{font-size:12px;padding:4px 12px;border:1px dashed var(--jade);color:var(--jade);border-radius:20px;transition:all .15s}
+.d-quick button:hover{background:var(--jade-soft)}
+
+/* ---------- 我的哲学 ---------- */
+.book-wrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.book-side{display:flex;flex-direction:column;gap:12px}
+.book-main{flex:1;background:var(--paper);border:1px solid var(--paper-line);border-radius:var(--radius);padding:38px 44px;
+  min-height:calc(100vh - 128px);color:var(--paper-ink);box-shadow:var(--sh-card);transition:background-color .35s var(--ease)}
+.book-cover{border-bottom:2px solid var(--paper-accent);padding-bottom:22px;margin-bottom:8px}
+.bc-kicker{font-size:11px;letter-spacing:4px;color:var(--paper-accent);margin-bottom:12px;font-family:var(--mono)}
+.book-cover h2{font-size:25px;margin-bottom:8px;color:var(--paper-ink)}
+.bc-meta{font-size:12.5px;color:var(--paper-ink2)}
+.chapter{margin:28px 0}
+.chapter h3{font-size:17px;margin-bottom:14px;padding-left:12px;border-left:4px solid var(--paper-accent);color:var(--paper-ink)}
+.chapter p{font-size:14px;margin-bottom:10px;text-align:justify;color:var(--paper-ink)}
+.bk-item{font-size:13.5px;padding:9px 14px;background:var(--paper-card);border:1px solid var(--paper-line);border-radius:9px;margin-bottom:8px;color:var(--paper-ink)}
+.bk-date{font-size:11px;color:var(--paper-ink2);margin-right:10px;font-family:var(--mono)}
+ol.props{padding-left:22px}
+ol.props li{font-size:15px;margin-bottom:12px;line-height:1.9;color:var(--paper-ink)}
+.synth{display:flex;gap:14px;align-items:center;padding:70px 20px;color:var(--paper-ink2);font-size:14px}
+.synth .ic{width:22px;height:22px;color:var(--paper-accent)}
+.synth-dot{width:13px;height:13px;border-radius:50%;background:var(--paper-accent);animation:pulse 1s infinite alternate;flex:none}
+@keyframes pulse{from{transform:scale(.6);opacity:.5}to{transform:scale(1.2);opacity:1}}
+.book-empty{text-align:center;padding:70px 20px;color:var(--paper-ink2)}
+.book-empty .ic{width:44px;height:44px;color:var(--paper-accent);opacity:.85;margin:0 auto}
+
+/* ---------- 设置 ---------- */
+.set-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;align-items:start}
+.set-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--sh-card);
+  transition:background-color .35s var(--ease),border-color .35s var(--ease)}
+.set-card h4{font-size:14.5px;margin-bottom:14px;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.set-card h4 .ic{width:16px;height:16px;color:var(--accent)}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12px;color:var(--ink2);margin-bottom:5px}
+.field input,.field select{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:var(--field);color:var(--ink);
+  transition:border-color .15s,box-shadow .15s}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.field input:disabled{background:var(--bg2);color:var(--ink3)}
+.model-row{display:flex;gap:8px}
+.model-row input{flex:1;min-width:0}
+.model-row .btn{flex:none}
+.set-note{font-size:11.5px;color:var(--ink3);margin-top:10px;line-height:1.6}
+.conn{font-size:12px;color:var(--ink2);display:inline-flex;align-items:center;gap:6px}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none}
+.status-dot.ok{background:var(--jade)}
+.status-dot.warn{background:var(--gold)}
+.status-dot.testing{background:var(--gold);animation:pulse .8s infinite alternate}
+.switch-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px}
+.switch-row input{width:auto;accent-color:var(--accent)}
+/* iOS 风格分段控制器（主题切换） */
+.seg{display:inline-flex;gap:2px;padding:3px;background:var(--field);border-radius:10px;border:1px solid var(--line)}
+.seg button{padding:5px 16px;font-size:12.5px;border-radius:8px;color:var(--ink2);transition:all .18s var(--ease);display:inline-flex;align-items:center;gap:6px}
+.seg button .ic{width:13px;height:13px}
+.seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+@media (max-width:960px){
+  .book-main{padding:26px 22px}
+}
+
+</style>
+<meta name="theme-color" content="#0B0E14" id="meta-theme">
+<script>(function(){try{var t=localStorage.getItem('wj_theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}})();</script>
+</head>
+<body>
+<svg aria-hidden="true" style="display:none"><symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3l2.1 6.9L21 12l-6.9 2.1L12 21l-2.1-6.9L3 12l6.9-2.1Z"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6.4C10.4 4.9 8.3 4.3 4 4.3v14.4c4.3 0 6.4.6 8 2.1 1.6-1.5 3.7-2.1 8-2.1V4.3c-4.3 0-6.4.6-8 2.1Z"/><path d="M12 6.4v14.4"/></symbol><symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M15.5 8.5l-2.2 5.3-5.3 2.2 2.2-5.3Z"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.2 14.2A8.6 8.6 0 0 1 9.8 3.8a8.6 8.6 0 1 0 10.4 10.4Z"/></symbol><symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 4v15M8.5 19.5h7M4.5 8h15M7 8L4.2 14a2.9 2.9 0 0 0 5.6 0ZM17 8l-2.8 6a2.9 2.9 0 0 0 5.6 0Z"/></symbol><symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l1.2-4L17 4.2a2.05 2.05 0 0 1 2.9 2.9L8 19Z"/><path d="M14.8 6.4l2.9 2.9"/></symbol><symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.1 5.1l1.6 1.6M17.3 17.3l1.6 1.6M18.9 5.1l-1.6 1.6M6.7 17.3l-1.6 1.6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol><symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.6l5 5 10-11.2"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4L2.8 20h18.4Z"/><path d="M12 10v4.6M12 17.4v.4"/></symbol><symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4Z"/></symbol><symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1M20.5 4v4.4h-4.4"/></symbol><symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v11.5M7.5 10.5L12 15l4.5-4.5M4.5 20.5h15"/></symbol><symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V3.5M7.5 8L12 3.5 16.5 8M4.5 20.5h15"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6.5h16M9.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v1.5M6.5 6.5l.9 13.1a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-13.1M10 10.5v6M14 10.5v6"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol><symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></symbol><symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="10" r="3.5"/><path d="M10.5 12.5L20 22M16 18l2.5-2.5M13 15l2.5-2.5"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.7 1.7M14 10a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.7-1.7"/></symbol><symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3.5h8L19 8.5V20.5H6Z"/><path d="M13.5 3.5v5.5H19M9 13h6M9 16.5h6"/></symbol><symbol id="i-devices" viewBox="0 0 24 24"><rect x="2.5" y="5" width="12.5" height="9" rx="1.8"/><path d="M5.8 17.6h6"/><rect x="17" y="8.5" width="4.5" height="9" rx="1.5"/></symbol><symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5l1.5 4.7 4.7 1.5-4.7 1.5L12 16l-1.5-4.8L5.8 9.7l4.7-1.5Z"/><path d="M18.6 15.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z"/></symbol><symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5L6.5 9H3v6h3.5L11 19Z"/><path d="M15.5 8.8a4.8 4.8 0 0 1 0 6.4M18.3 5.8a9 9 0 0 1 0 12.4"/></symbol><symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/></symbol></svg>
+
+<aside class="sidebar">
+  <div class="sb-brand"><span class="seal">问</span><div><b>问津</b><small>WENJIN · 思想栖所</small></div></div>
+  <nav class="sb-nav">
+    <button class="on" data-tab="star"><svg class="ic"><use href="#i-star"/></svg><span>概念星系</span></button>
+    <button data-tab="read"><svg class="ic"><use href="#i-book"/></svg><span>精读伴读</span></button>
+    <button data-tab="method"><svg class="ic"><use href="#i-compass"/></svg><span>方法论库</span></button>
+    <button data-tab="gewu"><svg class="ic"><use href="#i-moon"/></svg><span>日常格物</span></button>
+    <button data-tab="debate"><svg class="ic"><use href="#i-scale"/></svg><span>论道</span></button>
+    <button data-tab="book"><svg class="ic"><use href="#i-pen"/></svg><span>我的哲学</span></button>
+    <button data-tab="set"><svg class="ic"><use href="#i-gear"/></svg><span>设置</span></button>
+  </nav>
+  <div class="sb-foot">
+    <button class="sb-theme" id="sb-theme" onclick="toggleTheme()" title="一键切换明暗主题"><span id="sb-theme-ic"></span><span id="sb-theme-tx">浅色模式</span></button>
+    <div class="sb-mode" id="sb-mode"><span class="dot warn"></span>预置脚本 AI</div>
+    <div>v2.0 · 数据在家 · 断网可用</div>
+  </div>
+</aside>
+<div class="stage">
+<main>
+
+<!-- ============ TAB 1 概念星系 ============ -->
+<section class="tab on" id="tab-star">
+  <div class="hint">按住节点拖动（上下左右都跟手）· <b>滚轮以鼠标为中心缩放</b> · 按住空白处平移视图 · 单击看详情 · 双击直跳原著段落 · 悬停高亮关系网</div>
+  <div class="star-wrap">
+    <div class="star-canvas">
+      <svg id="graph" viewBox="0 0 680 540"></svg>
+      <div class="star-legend">
+        <span><i style="border-color:var(--star-edge)"></i>继承</span>
+        <span><i style="border-color:var(--star-edge-opposes);border-top-style:dashed"></i>反对</span>
+        <span><i style="border-color:var(--gold);border-top-style:dotted"></i>提出 / 修正</span>
+        <span><i class="dot lit"></i>已点亮</span>
+        <span><i class="dot off"></i>盲区</span>
+      </div>
+    </div>
+    <div class="star-side">
+      <div class="panel" id="node-panel">
+        <h3>点一个节点</h3>
+        <div class="kind">星系中目前 27 个节点 · 21 条边</div>
+        <div class="brief">每个概念都不是孤岛。点开它——详情面板里有四个跳转入口，把它接回原著、方法论、论道和你的格物记录。</div>
+      </div>
+      <div class="panel blind" id="blind-panel"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 2 精读伴读 ============ -->
+<section class="tab" id="tab-read">
+  <div class="hint">选中原文任何一句 → 弹出三问 · 回答里的概念可一键跳回星图 · 可存入我的哲学书 · 支持载入自己的 .txt / .md · 悬停段落可朗读</div>
+  <div class="read-wrap">
+    <div class="doc-list">
+      <div class="shelf-head"><span>书架</span><button class="shelf-add" onclick="document.getElementById('book-file').click()"><svg class="ic"><use href="#i-plus"/></svg>载入书籍</button><input type="file" id="book-file" accept=".txt,.md" style="display:none" onchange="loadUserBook(this)"></div>
+      <div id="shelf-books"></div>
+    </div>
+    <div class="doc-col">
+      <div class="read-toolbar">
+        <div class="rt-group"><span style="font-size:12px;color:var(--ink2)">字号</span><button onclick="fontSize(-1)">A－</button><span id="font-val" style="font-size:12px;color:var(--ink2);min-width:34px;text-align:center">16px</span><button onclick="fontSize(1)">A＋</button></div>
+        <div class="rt-group"><button onclick="ttsReadAll()"><svg class="ic"><use href="#i-volume"/></svg>朗读全文</button><button onclick="ttsStop()"><svg class="ic"><use href="#i-stop"/></svg>停止</button></div>
+      </div>
+      <div class="doc-main" id="doc-main"></div>
+    </div>
+    <div class="ai-panel" id="ai-panel">
+      <div class="brief" style="color:var(--ink3);font-size:13px">← 选中原文一句话，问我「讲讲 / 引导我 / 在反驳谁」</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 3 方法论库 ============ -->
+<section class="tab" id="tab-method">
+  <div class="hint">首批 10 条 · 每条都是可操作的程序 · 卡片底部标注接通哪里：<b>星图 / 原文 / 格物</b></div>
+  <div class="method-grid" id="method-grid"></div>
+</section>
+
+<!-- ============ TAB 4 日常格物 ============ -->
+<section class="tab" id="tab-gewu">
+  <div class="hint">晚间复盘：<b>选条目</b> → 烦扰 → 追问 → 二分 → 格物卡 · 追问剧本随条目切换 · 卡片可回跳星图、可沉淀进「我的哲学」</div>
+  <div class="gewu-wrap">
+    <div class="gewu-main">
+      <h2>晚间复盘 · 2026-10-23</h2>
+      <div class="sub">今晚用什么方法论过这一天？选一个——追问剧本会跟着它变。</div>
+      <div id="gewu-body"></div>
+    </div>
+    <div class="gewu-side">
+      <div class="panel">
+        <h4 style="font-size:13px;margin-bottom:10px;color:var(--ink2)">我的格物统计</h4>
+        <div class="stat-row">
+          <div class="stat"><b>3</b><span>连续天数</span></div>
+          <div class="stat"><b>7</b><span>累计格物卡</span></div>
+          <div class="stat"><b>A1</b><span>常用条目</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h4 style="font-size:13px;margin-bottom:10px;color:var(--ink2)">历史格物卡</h4>
+        <div style="display:flex;flex-direction:column;gap:8px" id="gw-history"></div>
+        <button class="btn ghost sm" style="margin-top:12px;width:100%" onclick="switchTab('book')"><svg class="ic"><use href="#i-pen"/></svg>去我的哲学体系 →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 5 论道 ============ -->
+<section class="tab" id="tab-debate">
+  <div class="hint">选一位哲学家直接开聊 · <b>人格由 AI 扮演</b>，苏格拉底依旧只问不答 · 聊两个回合以上可整场存入「我的哲学书」</div>
+  <div class="debate-wrap">
+    <div class="debate-main">
+      <div class="debate-head" id="debate-head"></div>
+      <div class="debate-chat" id="debate-chat"></div>
+      <div class="debate-input" id="debate-input"></div>
+    </div>
+    <div class="phil-list" id="phil-list"></div>
+  </div>
+</section>
+
+<!-- ============ TAB 6 我的哲学 ============ -->
+<section class="tab" id="tab-book">
+  <div class="hint">格物卡、论道记录、伴读问答——AI 帮你梳理成一本<b>专属于你的哲学书</b> · 记录越多书越厚 · 可导出 .md</div>
+  <div class="book-wrap">
+    <div class="book-main" id="book-main"></div>
+    <div class="book-side">
+      <div class="panel" id="book-stats"></div>
+      <div class="panel" id="book-progress"></div>
+      <div class="panel">
+        <h4 style="font-size:13px;margin-bottom:10px;color:var(--ink2)">沉淀从哪来</h4>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--ink2)">
+          <span><svg class="ic"><use href="#i-moon"/></svg>格物卡 · 每晚复盘产出</span>
+          <span><svg class="ic"><use href="#i-scale"/></svg>论道 · 与哲学家的对话</span>
+          <span><svg class="ic"><use href="#i-book"/></svg>伴读 · 划句问答的记录</span>
+        </div>
+        <div class="jump-row" style="margin-top:12px">
+          <button class="jump-btn" onclick="switchTab('gewu')"><svg class="ic"><use href="#i-moon"/></svg><span>去格物<small>今晚复盘一次</small></span></button>
+          <button class="jump-btn" onclick="switchTab('debate')"><svg class="ic"><use href="#i-scale"/></svg><span>去论道<small>找位哲学家聊聊</small></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 7 设置 ============ -->
+<section class="tab" id="tab-set">
+  <div class="hint">填入自己的 API（Ollama / DeepSeek / 硅基流动 / 任何 OpenAI 兼容服务）→ 点「测试连接」通过后 <b>讲解 / 格义 / 格物追问 / 论道全部即时切换真实模型</b>；没测通自动走预置脚本，功能不中断</div>
+  <div class="set-grid" id="set-grid"></div>
+</section>
+
+</main>
+
+</div>
+
+<div class="askbar" id="askbar">
+  <button class="primary" data-ask="explain">讲讲这段</button>
+  <button data-ask="question">我没懂，引导我</button>
+  <button data-ask="connect">这在反驳谁</button>
+</div>
+
+<div class="modal-mask" id="modal-mask" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==================== 数据层 ==================== */
+const NODES=[
+ {id:'stoic',name:'斯多葛学派',kind:'school',school:'希腊化罗马',brief:'晚期古希腊罗马四大流派之一，主张德性即唯一的善，以理性驯服情绪。',src:'芝诺创立，经爱比克泰德、马可·奥勒留传世',doc:{d:'epictetus',p:0}},
+ {id:'epictetus',name:'爱比克泰德',kind:'figure',school:'希腊化罗马',brief:'从奴隶到哲人。其《论说集》开篇即把世界一刀切成"能力之内"与"能力之外"。',src:'《爱比克泰德论说集》',doc:{d:'epictetus',p:0}},
+ {id:'dichotomy',name:'控制二分法',kind:'method',school:'希腊化罗马',brief:'方法论 A1：把事物分为可控与不可控，只对可控部分使力，对不可控部分练习"愿意其发生"。',src:'爱比克泰德《论说集》卷一',doc:{d:'epictetus',p:0},entries:['A1']},
+ {id:'amorfati',name:'命运之爱',kind:'method',school:'现代欧陆',brief:'方法论 A3：不只要忍受发生的事，还要爱上它——它是你唯一的素材。',src:'尼采《瞧，这个人》',doc:null,entries:['A3']},
+ {id:'nietzsche',name:'尼采',kind:'figure',school:'现代欧陆',brief:'"上帝死了"的宣布者，重估一切价值，哲学在他的锤下变成手术刀。',src:'《善恶的彼岸》《瞧，这个人》',doc:null},
+ {id:'epicurus',name:'伊壁鸠鲁',kind:'figure',school:'希腊化罗马',brief:'被误解最深的哲人——他的快乐主义其实是极简主义：无痛苦的平静即至福。',src:'《致美诺西乌的信》',doc:null},
+ {id:'desire3',name:'欲望三分',kind:'method',school:'希腊化罗马',brief:'方法论 A4：欲望分自然且必要 / 自然但不必要 / 虚妄三类，管好第一类就获得自由的基础。',src:'伊壁鸠鲁学派',doc:null,entries:['A4']},
+ {id:'kant',name:'康德',kind:'figure',school:'德国古典',brief:'被休谟的怀疑"从独断论迷梦中唤醒"，用先验哲学给知识重新打地基。',src:'《纯粹理性批判》',doc:null},
+ {id:'dingziti',name:'物自体',kind:'concept',school:'德国古典',brief:'物自体不可知——我们认识的永远是经过感性形式加工的现象。这是康德的著名切口。',src:'《纯粹理性批判》',doc:null},
+ {id:'hume',name:'休谟',kind:'figure',school:'现代英美',brief:'怀疑论大师：因果性不是世界固有的，只是我们习惯性的心理联想。',src:'《人性论》',doc:null},
+ {id:'causation',name:'因果关系',kind:'concept',school:'现代英美',brief:'休谟之问：我们凭什么说"因为A所以B"？除了"总是看到它们相伴"，我们没有更多证据。',src:'休谟《人性论》',doc:null},
+ {id:'utilitarianism',name:'功利主义',kind:'concept',school:'现代英美',brief:'方法论 B10：行为的对错只看后果——最大多数人的最大幸福。',src:'边沁、密尔',doc:null,entries:['B10']},
+ {id:'bentham',name:'边沁',kind:'figure',school:'现代英美',brief:'功利主义创始人，想把伦理学变成算术：幸福可计量、可加总、可比较。',src:'《道德与立法原理导论》',doc:null},
+ {id:'veil',name:'无知之幕',kind:'method',school:'现代英美',brief:'方法论 B9：设计规则时假设不知道自己将是规则下的谁——正义的判断要去身份化。',src:'罗尔斯《正义论》',doc:null,entries:['B9']},
+ {id:'rawls',name:'罗尔斯',kind:'figure',school:'现代英美',brief:'用"无知之幕"重建正义论，直接对冲功利主义对个体权利的吞并。',src:'《正义论》',doc:null},
+ {id:'epoche',name:'现象学悬置',kind:'method',school:'现象学',brief:'方法论 B2：把"它是不是真的"这个判断加括号存起来，先看现象本身如何呈现。',src:'胡塞尔《观念Ⅰ》',doc:null,entries:['B2']},
+ {id:'husserl',name:'胡塞尔',kind:'figure',school:'现象学',brief:'"面向事情本身！"——暂停一切成见，让现象自己说话。',src:'《现象学的观念》',doc:null},
+ {id:'occam',name:'奥卡姆剃刀',kind:'method',school:'中世纪',brief:'方法论 B1：两个解释都能说明现象时，选假设更少的那个。如无必要，勿增实体。',src:'奥卡姆的威廉',doc:null,entries:['B1']},
+ {id:'occamW',name:'奥卡姆的威廉',kind:'figure',school:'中世纪',brief:'14 世纪方济各会士，逻辑学家。"剃刀"这个词其实是后人加的。',src:'《箴言书注疏》',doc:null},
+ {id:'midwife',name:'产婆术',kind:'method',school:'古希腊',brief:'方法论 B6/C：苏格拉底式追问六式——澄清、假设、证据、视角、后果、元问题。答案在对方心里，只是生不出来。',src:'柏拉图《泰阿泰德篇》',doc:null,entries:['B6']},
+ {id:'socrates',name:'苏格拉底',kind:'figure',school:'古希腊',brief:'雅典的"牛虻"，自称一无所知。他不是在讲授，他是在追问。',src:'柏拉图早期对话录',doc:null},
+ {id:'zhuangzi',name:'庄子',kind:'figure',school:'先秦中国',brief:'用寓言消解问题的哲人。当康德在分析，庄子已经在说"狙猿之巧于山林"。',src:'《庄子》',doc:{d:'zhuangzi',p:0}},
+ {id:'paoding',name:'庖丁解牛',kind:'method',school:'先秦中国',brief:'方法论 A10：顺应事物的结构游走（以无厚入有间），不硬碰。前提是看了十九年牛的深厚积累。',src:'《庄子·养生主》',doc:{d:'zhuangzi',p:1},entries:['A10']},
+ {id:'zhixing',name:'知行合一',kind:'method',school:'明代中国',brief:'方法论 A11：知而不行只是未知。真知必然带出行动，行动也是知的完成。',src:'王阳明《传习录》',doc:{d:'zhuangzi',p:2},entries:['A11']},
+ {id:'wangym',name:'王阳明',kind:'figure',school:'明代中国',brief:'心学集大成者。龙场一悟：心即理，知行本是一件事。',src:'《传习录》',doc:null},
+ {id:'doubt',name:'普遍怀疑',kind:'method',school:'现代欧陆',brief:'方法论 B3：系统性怀疑一切可疑的，直到找到不可疑的地基再重建。',src:'笛卡尔《第一哲学沉思集》',doc:null,entries:['B3']},
+ {id:'descartes',name:'笛卡尔',kind:'figure',school:'现代欧陆',brief:'"我思故我在"——用怀疑烧掉一切，最后剩下一块烧不掉的地基。',src:'《第一哲学沉思集》',doc:null}
+];
+const EDGES=[
+ ['epictetus','dichotomy','proposes','系统阐述'],['stoic','dichotomy','proposes','学派总纲'],
+ ['nietzsche','amorfati','proposes','命名并阐发'],['dichotomy','amorfati','refines','递进：从接受到热爱'],
+ ['amorfati','stoic','inherits','斯多葛晚期已有此源流'],
+ ['epicurus','desire3','proposes',''],['kant','dingziti','proposes',''],
+ ['hume','kant','refines','休谟的怀疑唤醒康德'],['hume','causation','opposes','质疑因果必然性'],
+ ['bentham','utilitarianism','proposes',''],['utilitarianism','veil','opposes','后果计算 vs 个体权利'],
+ ['rawls','veil','proposes',''],['utilitarianism','kant','opposes','后果论 vs 义务论'],
+ ['husserl','epoche','proposes',''],['epoche','doubt','inherits','悬置继承怀疑传统'],
+ ['descartes','doubt','proposes',''],
+ ['occamW','occam','proposes',''],['socrates','midwife','proposes',''],
+ ['zhuangzi','paoding','proposes',''],['wangym','zhixing','proposes',''],
+ ['paoding','zhixing','refines','顺应结构与知行本体相通']
+];
+let litNodes=['stoic','epictetus','socrates','kant','hume','zhuangzi','wangym'];
+const RELNAME={proposes:'提出',inherits:'继承',opposes:'反对',refines:'修正'};
+
+/* ==================== 星图物理引擎 ==================== */
+const NS={};
+NODES.forEach((n,i)=>{const a=(i/NODES.length)*Math.PI*2;NS[n.id]={...n,x:340+Math.cos(a)*190+Math.random()*20,y:270+Math.sin(a)*160+Math.random()*20,vx:0,vy:0,fx:null,fy:null};});
+const svg=document.getElementById('graph');
+const NS_='http://www.w3.org/2000/svg';
+function el(tag,attrs){const e=document.createElementNS(NS_,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+function nodeR(n){return n.kind==='school'?17:n.kind==='method'?14:n.kind==='figure'?12:10;}
+function nodeColor(n){return n.kind==='method'?'#FF6A4D':n.kind==='school'?'#7DA7D9':n.kind==='figure'?'#4FD1C5':'#A8B3C4';}
+let edgeEls=[],nodeEls={},selNode=null;
+function buildGraph(){
+  svg.innerHTML='<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.2"/></marker></defs>';
+  edgeEls=[];nodeEls={};
+  EDGES.forEach(([a,b,rel])=>{
+    const p=el('line',{x1:0,y1:0,x2:0,y2:0,'class':'e-'+rel,'stroke-width':1,
+      'stroke-dasharray':rel==='opposes'?'5,4':(rel==='proposes'||rel==='refines')?'1.5,4':'none','marker-end':'url(#ah)'});
+    p.style.opacity=.75;p.style.transition='opacity .2s';svg.appendChild(p);edgeEls.push({p,a,b});
+  });
+  NODES.forEach(n=>{
+    const g=el('g',{class:'node'});const c=el('circle',{'class':'dot k-'+n.kind,r:nodeR(n),'stroke-width':2});
+    const ring=el('circle',{'class':'ring',r:nodeR(n)+7,fill:'none','stroke-width':1.5,opacity:0});
+    const t=el('text',{x:0,y:0,'text-anchor':'middle','font-size':11});
+    t.textContent=n.name;g.appendChild(ring);g.appendChild(c);g.appendChild(t);
+    g.addEventListener('mouseenter',()=>hoverNode(n.id));
+    g.addEventListener('mouseleave',()=>hoverNode(null));
+    bindNodeDrag(g,n.id);
+    g.addEventListener('click',e=>{if(!dragMoved){showNode(n.id);}});
+    g.addEventListener('dblclick',e=>{if(!dragMoved&&n.doc){e.preventDefault();jumpToDoc(n.doc.d,n.doc.p);}});
+    svg.appendChild(g);nodeEls[n.id]={g,c,t,ring};
+  });
+  renderLit();renderBlind();tick();
+}
+/* ===== v1.0 视图变换 + Pointer Events 拖拽 =====
+   修复记录：v0.5 及以前 svgPt() 用 (clientY-r.top)*540/r.height 硬算，
+   未补偿 SVG preserveAspectRatio 的 letterbox——星图区在中窄窗口下呈"高瘦"形容器，
+   viewBox 内容垂直居中只占一条，y 换算整体失真（实测拖 120px 偏差 79 单位），
+   节点被物理边界钳死 → 表现为"只能横拖、上下拖钉住"。
+   修复：getScreenCTM().inverse() 精确换算（自动处理 letterbox 与缩放）
+   + setPointerCapture（指针移出画布不丢事件）+ 滚轮缩放/空白处平移。 */
+let view={x:0,y:0,w:680,h:540};
+function applyView(){svg.setAttribute('viewBox',view.x+' '+view.y+' '+view.w+' '+view.h);}
+function svgPt(e){const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(svg.getScreenCTM().inverse());return{x:p.x,y:p.y};}
+let dragId=null,dragMoved=false,panId=null,panStart=null;
+function bindNodeDrag(g,id){
+  g.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    e.preventDefault();e.stopPropagation();
+    try{g.setPointerCapture(e.pointerId);}catch(_){}
+    dragId=id;dragMoved=false;const pt=svgPt(e);NS[id].fx=pt.x;NS[id].fy=pt.y;
+    g.classList.add('dragging');
+  });
+  g.addEventListener('pointermove',e=>{
+    if(dragId!==id)return;
+    dragMoved=true;const pt=svgPt(e);NS[id].fx=pt.x;NS[id].fy=pt.y;
+  });
+  const end=()=>{
+    if(dragId!==id)return;
+    NS[id].fx=null;NS[id].fy=null;dragId=null;g.classList.remove('dragging');
+    setTimeout(()=>{dragMoved=false;},60);
+  };
+  g.addEventListener('pointerup',end);
+  g.addEventListener('pointercancel',end);
+}
+/* 画布空白处：抓手平移视图 */
+svg.addEventListener('pointerdown',e=>{
+  if(e.target.closest&&e.target.closest('g.node'))return;
+  try{svg.setPointerCapture(e.pointerId);}catch(_){}
+  panId=e.pointerId;panStart={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
+  svg.classList.add('panning');
+});
+svg.addEventListener('pointermove',e=>{
+  if(panId!==e.pointerId||!panStart)return;
+  const k=view.w/svg.getBoundingClientRect().width;
+  view.x=panStart.vx-(e.clientX-panStart.x)*k;
+  view.y=panStart.vy-(e.clientY-panStart.y)*k;
+  applyView();
+});
+const panEnd=e=>{if(panId!==e.pointerId)return;panId=null;panStart=null;svg.classList.remove('panning');};
+svg.addEventListener('pointerup',panEnd);
+svg.addEventListener('pointercancel',panEnd);
+/* 滚轮缩放（以鼠标位置为中心） */
+svg.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const before=svgPt(e);
+  const nw=Math.max(300,Math.min(1500,view.w*(e.deltaY<0?.92:1.09)));
+  const s=nw/view.w;
+  view.x=before.x-(before.x-view.x)*s;
+  view.y=before.y-(before.y-view.y)*s;
+  view.w=nw;view.h=nw*540/680;
+  applyView();
+},{passive:false});
+function relayout(){
+  const cx=view.x+view.w/2,cy=view.y+view.h/2;
+  const rx=Math.min(view.w*.30,220),ry=Math.min(view.h*.30,180);
+  NODES.forEach((n,i)=>{const a=(i/NODES.length)*Math.PI*2;
+    NS[n.id].x=cx+Math.cos(a)*rx;NS[n.id].y=cy+Math.sin(a)*ry;NS[n.id].vx=0;NS[n.id].vy=0;});
+  view={x:0,y:0,w:680,h:540};applyView();
+}
+applyView();
+function tick(){
+  const ids=Object.keys(NS),arr=ids.map(i=>NS[i]);
+  for(let i=0;i<arr.length;i++)for(let j=i+1;j<arr.length;j++){
+    const a=arr[i],b=arr[j];let dx=b.x-a.x,dy=b.y-a.y;let d2=dx*dx+dy*dy;if(d2<1)d2=1;
+    const d=Math.sqrt(d2);const f=Math.min(900/d2,3);
+    const ux=dx/d,uy=dy/d;a.vx-=ux*f;a.vy-=uy*f;b.vx+=ux*f;b.vy+=uy*f;
+  }
+  EDGES.forEach(([a,b])=>{const A=NS[a],B=NS[b];const dx=B.x-A.x,dy=B.y-A.y;const d=Math.max(Math.hypot(dx,dy),1);
+    const f=(d-100)*.02;const ux=dx/d,uy=dy/d;A.vx+=ux*f;A.vy+=uy*f;B.vx-=ux*f;B.vy-=uy*f;});
+  const cx=view.x+view.w/2,cy=view.y+view.h/2;
+  arr.forEach(n=>{n.vx+=(cx-n.x)*.004;n.vy+=(cy-n.y)*.004;n.vx*=.86;n.vy*=.86;
+    if(n.fx!=null){n.x=n.fx;n.vx=0;n.vy=0;}else{n.x+=n.vx;n.y+=n.vy;}
+    n.x=Math.max(view.x+16,Math.min(view.x+view.w-16,n.x));
+    n.y=Math.max(view.y+14,Math.min(view.y+view.h-14,n.y));});
+  edgeEls.forEach(e=>{const A=NS[e.a],B=NS[e.b];e.p.setAttribute('x1',A.x);e.p.setAttribute('y1',A.y);e.p.setAttribute('x2',B.x);e.p.setAttribute('y2',B.y);});
+  arr.forEach(n=>{nodeEls[n.id].g.setAttribute('transform','translate('+n.x+','+n.y+')');});
+  requestAnimationFrame(tick);
+}
+function renderLit(){
+  NODES.forEach(n=>{const g=nodeEls[n.id];const lit=litNodes.includes(n.id);
+    g.c.classList.toggle('lit',lit);g.t.classList.toggle('lit',lit);});
+}
+function renderBlind(){
+  const groups={};NODES.forEach(n=>{if(!groups[n.school])groups[n.school]=[];groups[n.school].push(n);});
+  let html='<h4>盲区检测 · 各星区点亮率</h4>';
+  Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length).forEach(s=>{
+    const g=groups[s];const lit=g.filter(n=>litNodes.includes(n.id)).length;
+    const pct=Math.round(lit/g.length*100);
+    html+='<div class="row"><span>'+s+'</span><div class="bar"><i class="'+(pct<40?'low':'')+'" style="width:'+Math.max(pct,4)+'%"></i></div><b>'+pct+'%</b></div>';
+  });
+  document.getElementById('blind-panel').innerHTML=html;
+}
+function hoverNode(id){
+  if(!id){edgeEls.forEach(e=>e.p.style.opacity=.75);NODES.forEach(n=>{nodeEls[n.id].t.style.opacity=1;nodeEls[n.id].c.style.opacity=1;});return;}
+  const nb=new Set([id]);
+  EDGES.forEach(([a,b])=>{if(a===id)nb.add(b);if(b===id)nb.add(a);});
+  edgeEls.forEach(e=>{e.p.style.opacity=(e.a===id||e.b===id)?1:.08;});
+  NODES.forEach(n=>{const on=nb.has(n.id);nodeEls[n.id].t.style.opacity=on?1:.18;nodeEls[n.id].c.style.opacity=on?1:.18;});
+}
+function showNode(id){
+  selNode=id;const n=NS[id];const lit=litNodes.includes(id);
+  Object.keys(nodeEls).forEach(k=>nodeEls[k].ring.setAttribute('opacity',0));
+  nodeEls[id].ring.setAttribute('opacity',.9);
+  let html='<h3>'+n.name+'</h3><div class="kind">'+({school:'流派',figure:'人物',method:'方法论',concept:'概念'})[n.kind]+' · '+n.school+' · '+(lit?'<span style="color:var(--accent)">已点亮</span>':'<span style="color:var(--ink3)">盲区</span>')+'</div>';
+  html+='<div class="brief">'+n.brief+'</div><div class="src">出处：'+n.src+'</div>';
+  html+='<div class="jump-row">';
+  if(n.doc)html+='<button class="jump-btn hot" onclick="jumpToDoc(\''+n.doc.d+'\','+n.doc.p+')"><svg class="ic"><use href="#i-book"/></svg><span>读它的原著段落<small>'+DOCS[n.doc.d].short+' · 第'+(n.doc.p+1)+'段</small></span></button>';
+  else html+='<button class="jump-btn off" disabled title="原著库扩充中"><svg class="ic"><use href="#i-book"/></svg><span>读它的原著段落<small>原著库扩充中（v0.2 计划）</small></span></button>';
+  const ents=(n.entries||[]).map(eid=>ENTRIES.find(e=>e.id===eid)).filter(Boolean);
+  if(ents.length)html+=ents.map(e=>'<button class="jump-btn" onclick="openEntryModalById(\''+e.id+'\')"><svg class="ic"><use href="#i-compass"/></svg><span>'+e.id+' '+e.name+'<small>看方法论条目 · SOP 与误用</small></span></button>').join('');
+  const ph=NODE2PHILO[id];
+  if(ph)html+='<button class="jump-btn" onclick="openDebate(\''+ph+'\')"><svg class="ic"><use href="#i-scale"/></svg><span>与他论道<small>AI 扮演 '+n.name+' · 追问技能在线</small></span></button>';
+  html+='<button class="jump-btn" onclick="startGewuWithEntry(\''+(ents[0]?ents[0].id:'A1')+'\')"><svg class="ic"><use href="#i-moon"/></svg><span>用它开始今晚格物<small>'+(ents[0]?'进入 '+ents[0].id+' '+ents[0].name:'默认进入 A1 控制二分法')+'</small></span></button>';
+  html+='</div>';
+  if(!lit)html+='<button class="btn sm" onclick="litNode(\''+id+'\')">点亮此节点</button> ';
+  html+='<button class="btn ghost sm" onclick="relayout()">重新布局</button>';
+  const neighbors=EDGES.filter(([a,b])=>a===id||b===id).map(([a,b,rel,note])=>{
+    const other=a===id?b:a;const dir=a===id?'→':'←';return{other,rel,dir,note};});
+  if(neighbors.length){
+    html+='<div class="rel-list"><h5>关系网（点击跳转）</h5>'+neighbors.map(r=>
+      '<div class="rel-item" onclick="showNode(\''+r.other+'\')"><span>'+NS[r.other].name+'</span><span class="arr">'+r.dir+' '+RELNAME[r.rel]+(r.note?' · '+r.note:'')+'</span></div>').join('')+'</div>';
+  }
+  document.getElementById('node-panel').innerHTML=html;
+}
+function litNode(id){if(!litNodes.includes(id)){litNodes.push(id);renderLit();renderBlind();showNode(id);toast('已点亮「'+NS[id].name+'」· 星图 +1');}}
+
+/* ==================== Tab 切换 ==================== */
+function switchTab(name){
+  document.querySelectorAll('.sb-nav button').forEach(x=>x.classList.toggle('on',x.dataset.tab===name));
+  document.querySelectorAll('section.tab').forEach(x=>x.classList.toggle('on',x.id==='tab-'+name));
+  document.body.dataset.tab=name;
+}
+document.querySelectorAll('.sb-nav button').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+
+/* ==================== 伴读 ==================== */
+const DOCS={
+ epictetus:{short:'《论说集》开篇',title:'爱比克泰德 ·《论说集》开篇',meta:'卷一 · 第一章 · 关于能力之内与能力之外',
+  paras:['有些事物在我们的能力之内，有些则不在。在我们能力之内的是判断、倾向、欲望、厌恶——简言之，我们自己的行为；不在我们能力之内的是身体、财产、名声、职位——简言之，不是我们自己的行为。',
+   '所以，如果你认为那本来自由的东西是你的，认为那属于别人的是你的，你就要受挫、悲哀、困惑，还要责怪神和人。但如果你认为只是自己的是自己的，不属于别人的是自己的，就没有人能强迫你，没有人能阻挡你，你不会责备任何人，也不会责怪自己。',
+   '记住：真正的损害不在于事情本身，而在于你对事情的判断。落榜不是祸患，"落榜是祸患"这个判断才是。']},
+ zhuangzi:{short:'《庖丁解牛》节选',title:'庄子 ·《养生主》庖丁解牛',meta:'节选 · 庖丁为文惠君解牛',
+  paras:['庖丁为文惠君解牛，手之所触，肩之所倚，足之所履，膝之所踦，砉然向然，奏刀騞然，莫不中音：合于《桑林》之舞，乃中《经首》之会。',
+   '文惠君曰：「嘻，善哉！技盖至此乎？」庖丁释刀对曰：「臣之所好者道也，进乎技矣。臣始解牛之时，所见无非牛者；三年之后，未尝见全牛也。方今之时，臣以神遇而不以目视，官知止而神欲行。」',
+   '依乎天理，批大郤，导大窾，因其固然，技经肯綮之未尝，而况大軱乎！']}
+};
+let curDoc='epictetus';
+function docChipsHtml(d){
+  const ids=NODES.filter(n=>n.doc&&n.doc.d===d).map(n=>n.id);
+  if(!ids.length)return'';
+  return'<div class="doc-chips">本文关联概念：'+ids.map(id=>'<span class="chip" onclick="gotoNode(\''+id+'\')">'+NS[id].name+'</span>').join('')+'（点我跳星图）</div>';
+}
+function renderDoc(){
+  const d=getDoc(curDoc);
+  const read=getProgress(curDoc);
+  let html='<h2 class="serif">'+esc(d.title)+'</h2><div class="meta">'+esc(d.meta)+'</div>';
+  html+=d.custom?'<div class="doc-chips">'+ic('file')+' 我的书库 · 点段落标记已读 · 悬停段落可 '+ic('volume')+' 朗读 · 可继续「载入书籍」（.txt / .md，也可把文件拖进本页）</div>':docChipsHtml(curDoc);
+  html+=d.paras.map((p,i)=>'<p class="serif'+(read.includes(i)?' read':'')+'" data-para="'+i+'" id="para-'+i+'">'+esc(p)+'<button class="para-tts" onclick="event.stopPropagation();ttsReadPara('+i+')" title="朗读本段">'+ic('volume')+'</button></p>').join('');
+  document.getElementById('doc-main').innerHTML=html;
+}
+/* 书架改由 renderShelf() 动态渲染（v0.3：内置原著 + 我的书库） */
+function jumpToDoc(docId,para){
+  if(curDoc!==docId){curDoc=docId;renderDoc();renderShelf();}
+  switchTab('read');
+  requestAnimationFrame(()=>{
+    const p=document.querySelector('#doc-main p[data-para="'+para+'"]');
+    if(p){p.scrollIntoView({behavior:'smooth',block:'center'});p.classList.add('flash');
+      setTimeout(()=>{p.classList.remove('flash');},1600);
+      toast('已定位到《'+esc(getDoc(docId).short||getDoc(docId).title)+'》第'+(para+1)+'段');}
+  });
+}
+const askbar=document.getElementById('askbar');
+let curQuote='';
+document.getElementById('doc-main').addEventListener('click',e=>{
+  const p=e.target.closest?e.target.closest('p[data-para]'):null;
+  if(p&&!e.target.classList.contains('para-tts'))markRead(+p.dataset.para);
+});
+document.getElementById('doc-main').addEventListener('mouseup',()=>{
+  setTimeout(()=>{
+    const sel=window.getSelection();
+    const txt=sel?sel.toString().trim():'';
+    if(txt.length>=2){
+      curQuote=txt;const r=sel.getRangeAt(0).getBoundingClientRect();
+      askbar.style.display='flex';
+      askbar.style.left=Math.max(10,Math.min(window.innerWidth-320,r.left+r.width/2-140))+'px';
+      askbar.style.top=(r.top+window.scrollY-46)+'px';
+    }else{askbar.style.display='none';}
+  },10);
+});
+askbar.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ask(b.dataset.ask);askbar.style.display='none';}));
+
+/* ---- mock AI ---- */
+let lastSkill='explain',lastAiReply='';
+function aiPanelReset(quote){
+  document.getElementById('ai-panel').innerHTML='<div class="quote">「'+quote+'」</div><div id="ai-flow"></div>';
+}
+function typeInto(elId,text,cb){
+  const box=document.getElementById(elId);if(!box){cb&&cb();return;}
+  let i=0;const d=document.createElement('div');d.className='bubble';d.innerHTML='<div class="who">问津 AI</div><span></span>';
+  box.appendChild(d);const span=d.querySelector('span');
+  const t=setInterval(()=>{i+=2;span.textContent=text.slice(0,i);if(i>=text.length){clearInterval(t);lastAiReply=text;cb&&cb();}},28);
+}
+function litChips(ids,withSave){
+  let h='<div class="lit-line">点亮关联概念：'+ids.map(id=>'<span class="chip" onclick="gotoNode(\''+id+'\')">'+NS[id].name+'</span>').join('')+'</div>';
+  if(withSave!==false)h+='<button class="btn ghost sm" style="margin-top:2px" onclick="saveReading()">'+ic('book')+' 把这段问答存入我的哲学书</button>';
+  return h;
+}
+function saveReading(){
+  if(!curQuote){toast('先选中原文问一句');return;}
+  if(!lastAiReply){toast('等 AI 说完再存');return;}
+  pushMaterial('readings',{date:today(),doc:getDoc(curDoc).short||getDoc(curDoc).title,quote:curQuote,skill:({explain:'讲解',question:'追问',connect:'格义'})[lastSkill]||'问答',reply:lastAiReply});
+}
+function gotoNode(id){
+  switchTab('star');
+  requestAnimationFrame(()=>{showNode(id);if(!litNodes.includes(id))litNode(id);});
+}
+function ask(kind){
+  lastSkill=kind;
+  if(kind!=='question'&&aiLive()){
+    aiPanelReset(curQuote);
+    const d=getDoc(curDoc);
+    document.getElementById('ai-flow').insertAdjacentHTML('beforeend','<div class="bubble"><div class="who">问津 AI · '+esc(PROVIDERS[settings.primary].name)+'</div>正在读这段…</div>');
+    const sys=kind==='explain'
+      ?'你是「问津」的伴读 AI，当前技能=讲解。用户正在读一段哲学原著，选中了其中一句话。要求：①先用一句人话概括这段在说什么 ②再分层讲清楚：概念来源、逻辑展开、妙处各一小段 ③最后给一个贴生活的类比或例子。语气像耐心的哲学教练，不堆术语，总体 250-400 字。'
+      :'你是「问津」的伴读 AI，当前技能=格义（立场分析）。用户正在读一段哲学原著，选中了其中一句话。要求：①说出这段文字在跟哪些立场对线——它反对什么、继承什么 ②各派会怎么回应它 ③给一个跨文明对位（比如用中国哲学解释西方概念，或反之）。总体 250-400 字。';
+    const user='【原文全文】\n'+(d.paras||[]).join('\n')+'\n\n【用户选中】\n'+curQuote;
+    aiCall(sys,user).then(txt=>{
+      const lit=kind==='explain'?['midwife','dichotomy']:(curDoc==='epictetus'?['dichotomy','kant','stoic']:['paoding','zhixing','midwife']);
+      typeInto('ai-flow',txt,()=>{
+        document.getElementById('ai-flow').insertAdjacentHTML('beforeend',litChips(lit)+'<div class="act-line">落到今天：把这段讲给一个不懂哲学的朋友听——讲得出口，才算真懂。</div>');
+      });
+    }).catch(()=>{toast('模型没回应，已切预置脚本');askMock(kind);});
+    return;
+  }
+  askMock(kind);
+}
+function askMock(kind){
+  lastSkill=kind;
+  aiPanelReset(curQuote);
+  const flow='ai-flow';const q=curQuote;
+  if(kind==='explain'){
+    let txt,lit,act;
+    if(getDoc(curDoc).custom){
+      txt='你选中了：「'+(q.length>30?q.slice(0,30)+'…':q)+'」。\n\n原型版对"我的书库"走通用讲解链路——真 LLM 接入后，这里会把整本书当上下文逐层讲：先人话版，再学术版，再给你一个生活类比。\n\n现在可以先用「我没懂，引导我」：追问技能会带你拆这段话——它想说什么、默认了什么、你在哪卡住。';
+      lit=['midwife','dichotomy'];act='落到今天：这段话让你联想到自己经历的哪件事？';
+    }else if(q.includes('能力之内')&&q.includes('不在')){
+      txt='这一刀是整部《论说集》的总纲。\n\n爱比克泰德把世界切成两半：能力之内的是判断、倾向、欲望、厌恶——注意，全是「心智活动」；能力之外的是身体、财产、名声、职位——全是「身外之物」。\n\n妙处在后半句：连身体都被归到能力之外。这不是悲观，是解放——考试成绩、别人议论、排名数字，从始至终就不归你管，你管的是"怎么对待它们"。';
+      lit=['dichotomy','epictetus'];act='落到今天：昨晚让你睡不着的那个消息，属于哪一边？';
+    }else if(q.includes('真正的损害')){
+      txt='这句话是控制二分法的"升级版"：斯多葛不说"看开点"，他们说——\n\n让你痛苦的不是事件，是你对事件的「判断」。同样是被否定，"这说明我差劲"是判断，"这说明这次不匹配"也是判断。前者制造痛苦，后者制造下一步行动。\n\n后来的认知行为疗法（CBT）几乎原样继承了这条思路。';
+      lit=['dichotomy','stoic'];act='落到今天：给最近一件烦扰事，换个"斯多葛版判断"写下来。';
+    }else if(q.includes('天理')){
+      txt='"天理"不是道德法则，是牛本身的自然结构——骨节之间本就有的空隙。\n\n庖丁的刀十九年若新发于硎，因为他"以无厚入有间"：不切割，只游走。你做事硬碰、内耗、卡住，往往是在跟"全牛"较劲，而没找到那道缝。\n\n注意他说的前提："三年之后，未尝见全牛"——先看见结构，才谈得上顺应。';
+      lit=['paoding','zhuangzi'];act='落到今天：手头最卡的那件事，"骨节之间的缝"在哪里？';
+    }else if(q.includes('以神遇')){
+      txt='"官知止而神欲行"——眼睛耳朵这些感官停下，手自己知道往哪走。\n\n这就是熟练的终点：从"想着做"变成"做着想"。王阳明说"知行合一"，庖丁说"神遇"，说的是同一件事的两端。\n\n但它有代价：庖丁练了十九年。所有看似玄妙的"游刃有余"，都是大量枯燥练习之后，结构长进了身体里。';
+      lit=['paoding','zhixing'];act='落到今天：你手上哪件事已经到了"官知止"的阶段？哪件还在"所见无非牛"？';
+    }else{
+      txt='这段讲的是控制二分法的直接应用：把"属于别人的东西"认成自己的，是烦恼的总根源。\n\n名声、职位、他人的评价——你把它们请进自己的领地，就等于把钥匙交给别人，别人一不高兴你就断电。\n\n斯多葛不说这些不重要，说的是：它们重要，但不归你。';
+      lit=['dichotomy','stoic'];act='落到今天：列一件"别人的事"，今晚开始不替它操心。';
+    }
+    typeInto(flow,txt,()=>{document.getElementById(flow).insertAdjacentHTML('beforeend',litChips(lit)+'<div class="act-line">'+act+'</div>');});
+  }
+  if(kind==='connect'){
+    let txt,lit;
+    if(getDoc(curDoc).custom){
+      txt='自定义书籍暂不接入立场图谱（原型版只对内置原著做格义）。\n\n但你可以反着用这一问：合上书问自己——这段文字在反驳什么观点？它反对的那个立场，你真的读过原文吗？\n\n这个"替它找敌人"的动作，就是格义技能的内核：任何文本都活在论战里。';
+      lit=['midwife'];
+    }else if(curDoc==='epictetus'){
+      txt='这段表面在立论，其实在跟整个古代伦理学传统对线：\n\n· 对柏拉图：善不在理念王国里，在"你能力之内"的意图里\n· 对亚里士多德：幸福不靠外在善（财富、名誉、健康），靠德性运用\n· 后世回声：康德的"意志自律"只认动机不认后果，是这条线的德国版翻版\n\n而庄子会怎么接这一刀？——"知其不可奈何而安之若命"，接受不可控这块，中西在顶峰握了手。';
+      lit=['dichotomy','kant','stoic'];
+    }else{
+      txt='庖丁解牛是"方法论"的中国式表达，对位的是西方的实践智慧（phronesis）：\n\n· 亚里士多德：实践理性是在具体处境中见出"中道"的能力——庖丁见的正是牛的中道\n· 与产婆术互为表里：苏格拉底追问"你真的懂吗"，庄子演示"懂了就不用眼看"\n· 王阳明的"知行合一"是它的注脚：解牛之道不在书里，在刀锋上';
+      lit=['paoding','zhixing','midwife'];
+    }
+    typeInto(flow,txt,()=>{document.getElementById(flow).insertAdjacentHTML('beforeend',litChips(lit)+'<div class="act-line">落到今天：你最近在哪个观点上"站队"了？它反对的立场，你真的读过吗？</div>');});
+  }
+  if(kind==='question'){startQuestionFlow();}
+}
+const Q_FLOW=[
+ {q:'你说「{QUOTE}」——先别急着评价它。这句话里，哪部分是你做的事，哪部分是别人/世界决定的？',opts:['我做的事：…','别人决定的：…','好像混在一起了']},
+ {q:'你刚才提到一个前提——「所以我才会难受」。这个前提本身，你能控制吗？如果不能，它是在替你受苦，还是在替你逃避？',opts:['它确实不归我管','等等，我在逃避什么？']},
+ {q:'换个眼睛：如果是你最好的朋友遇到一模一样的事，你会建议他先把力气花在哪？',opts:['先做能做的','先接受改不了的']},
+ {q:'好——你自己已经说出来了。把这句话写下来，就是今晚格物卡的第一步。要现在去格物里走一遍吗？',opts:['去日常格物','先留着，继续读']}
+];
+let qStep=0;
+function startQuestionFlow(){
+  qStep=0;aiPanelReset(curQuote);
+  Q_FLOW[0].q=Q_FLOW[0].q.replace('{QUOTE}',curQuote.length>18?curQuote.slice(0,18)+'…':curQuote);
+  askQ();
+}
+function askQ(){
+  const step=Q_FLOW[qStep];
+  document.getElementById('ai-flow').insertAdjacentHTML('beforeend','<div class="bubble"><div class="who">问津 AI · 追问技能</div>'+step.q+'</div><div class="quick-opts" id="qopts"></div><div class="chat-input"><input id="qinput" placeholder="或者，自己写一句…"><button class="btn sm" onclick="answerQ()">回我</button></div>');
+  const box=document.getElementById('qopts');
+  step.opts.forEach(o=>{const b=document.createElement('button');b.textContent=o;b.onclick=()=>{pushMe(o);nextQ();};box.appendChild(b);});
+}
+function pushMe(text){
+  document.getElementById('ai-flow').insertAdjacentHTML('beforeend','<div class="bubble me">'+text+'</div>');
+}
+function answerQ(){
+  const v=document.getElementById('qinput').value.trim();if(!v)return;pushMe(v);nextQ();
+}
+function nextQ(){
+  qStep++;
+  const old=document.getElementById('qopts');if(old)old.remove();
+  const ci=document.querySelector('#ai-flow .chat-input');if(ci)ci.remove();
+  if(qStep<Q_FLOW.length){setTimeout(askQ,400);}
+  else{
+    document.getElementById('ai-flow').insertAdjacentHTML('beforeend','<div class="bubble"><div class="who">问津 AI · 追问技能</div>追问到此为止——三轮是上限，哲学不该制造新焦虑。</div>'+litChips(['dichotomy','midwife'],false)+'<div class="quick-opts"><button onclick="startGewuWithEntry(\'A1\')">'+ic('moon')+' 去日常格物走完它</button></div>');
+  }
+}
+
+/* ==================== 方法论库 ==================== */
+const ENTRIES=[
+ {id:'A1',name:'斯多葛控制二分法',cat:'生活指导',one:'把世界切成"能控制的"和"不能控制的"，只对前者使劲，对后者练习愿意。',
+  sop:['列出当前烦扰源','逐个标注：可控 / 不可控','不可控项：做"愿意其发生"练习（联动 A3）','可控项：拆成下一步最小行动'],
+  misuse:'拿"接受不可控"当摆烂借口——斯多葛恰恰要求对可控部分全力以赴。',src:'爱比克泰德《论说集》',lit:['dichotomy'],docs:[{d:'epictetus',p:0},{d:'epictetus',p:2}]},
+ {id:'A4',name:'伊壁鸠鲁欲望三分',cat:'生活指导',one:'欲望分三类：自然且必要 / 自然但不必要 / 虚妄；满足第一类即得自由的基础。',
+  sop:['把最近的欲望写下来','逐条归类到三个抽屉','虚妄类：追问"这是谁告诉我要的？"','自然不必要类：允许适度，不加大剂量'],
+  misuse:'不是禁欲主义，第二类欲望可以适度享受。',src:'伊壁鸠鲁《致美诺西乌的信》',lit:['desire3'],docs:[]},
+ {id:'A11',name:'知行合一',cat:'生活指导',one:'知而不行只是未知——真知必然带出行动，行动也是知的完成。',
+  sop:['写下你"懂了很多道理"的那条道理','问：我上周为它做过什么？','答不上来就把它从"已知"降级为"未验"','给它设计一个 48 小时内可完成的最小验证'],
+  misuse:'不是"干就完了"，阳明强调知行本是一件事。',src:'王阳明《传习录》',lit:['zhixing'],docs:[{d:'zhuangzi',p:2}]},
+ {id:'A10',name:'庖丁解牛',cat:'生活指导',one:'顺应事物的结构游走（以无厚入有间），不硬碰。',
+  sop:['画出手头任务的结构图：节点在哪、缝在哪','标出自己在"跟全牛较劲"的点','绕开缝走，不正面切割','先积累"看十九年牛"的基本功，再谈游刃'],
+  misuse:'不是投机取巧，前提是深厚的结构与练习积累。',src:'《庄子·养生主》',lit:['paoding'],docs:[{d:'zhuangzi',p:1},{d:'zhuangzi',p:2}]},
+ {id:'B1',name:'奥卡姆剃刀',cat:'思维工具',one:'两个解释都能说明现象时，选假设更少的那个。',
+  sop:['写下两个竞争性解释','数各自需要额外假设几个','选假设负担最小的','给它 48 小时——若新证据推翻，剃刀让位'],
+  misuse:'不是"越简单越好"，是"假设负担最小"；简单解释不成立时别硬剃。',src:'奥卡姆的威廉',lit:['occam'],docs:[]},
+ {id:'B2',name:'现象学悬置',cat:'思维工具',one:'把"它是不是真的"加括号存起来，先看现象本身如何呈现。',
+  sop:['写下你对某事的所有成见判断','逐条"加括号"：存疑，不否证','问：去掉这些判断后，我看到的"纯粹现象"是什么？','带着这个干净版重新做一次决策'],
+  misuse:'不是否定客观性，是暂停判断以看得更全。',src:'胡塞尔《观念Ⅰ》',lit:['epoche'],docs:[]},
+ {id:'B4',name:'汉隆剃刀',cat:'思维工具',one:'能用疏忽/愚蠢/遗忘解释的，不要归因于恶意。',
+  sop:['写下"他针对我"的证据链','逐条问：这条用"他只是忘了"解释得通吗？','若有确凿恶意证据，剃刀让位','通不通都先按"非恶意"版本行动一次'],
+  misuse:'对确凿的系统性恶意别装糊涂——剃刀先于证据，但不豁免证据。',src:'汉隆（Robert J. Hanlon）',lit:['occam'],docs:[]},
+ {id:'B6',name:'苏格拉底追问六式',cat:'思维工具',one:'澄清问题→追问假设→追问证据→追问视角→追问后果→追问问题本身。',
+  sop:['澄清：你到底在问什么？','假设：这个说法的前提是什么？','证据：有什么能证明它？','视角：反对者会怎么看？','后果：如果它对，会推出什么？','元问题：这问题本身问对了吗？'],
+  misuse:'不是抬杠，目的是帮对方自己长出答案。',src:'柏拉图《泰阿泰德篇》',lit:['midwife'],docs:[]},
+ {id:'C1',name:'钢人论证',cat:'论辩表达',one:'反驳之前，先把对方的论证补强到最强版本再驳。',
+  sop:['写下你反对的观点','改写它：帮它补上最好的前提','再反驳这个"最强版"','驳倒了强化版——胜利才有含金量'],
+  misuse:'不是替对方认错，是让胜利有含金量。',src:'哲学论辩传统',lit:['midwife'],docs:[]},
+ {id:'C4',name:'论证重构',cat:'论辩表达',one:'把一段话补成标准式，让隐含前提暴露。',
+  sop:['抄下对方/自己的原话','补成：前提1、前提2……所以结论','找出"没说但必须成立"的隐含前提','逐条审问：它站得住吗？'],
+  misuse:'重构要尽量善意（charitable），别把对方立成稻草人。',src:'非形式逻辑传统',lit:['dichotomy'],docs:[]}
+];
+function catCls(c){return c==='生活指导'?'life':c==='思维工具'?'think':'debate';}
+function renderMethods(){
+  document.getElementById('method-grid').innerHTML=ENTRIES.map(e=>{
+    const links=[];
+    if(e.lit.length)links.push(ic('star')+' 星图 '+e.lit.length);
+    if(e.docs.length)links.push(ic('book')+' 原文 '+e.docs.length);
+    links.push(ic('moon')+' 可格物');
+    return'<div class="m-card '+catCls(e.cat)+'" onclick="openEntryModalById(\''+e.id+'\')"><div class="cat cat-'+catCls(e.cat)+'">'+e.id+' · '+e.cat+'</div><h4>'+e.name+'</h4><p>'+e.one+'</p><div class="links"><span>'+links.join('</span><span>')+'</span></div></div>';
+  }).join('');
+}
+function openEntryModalById(eid){const e=ENTRIES.find(x=>x.id===eid);if(e)openEntryModal(e);}
+function openEntryModal(e){
+  let html='<button class="close" onclick="closeModal()">'+ic('close')+'</button><h3>'+e.id+' '+e.name+'</h3><div class="sub">'+e.cat+'</div><h5>一句话</h5><div style="font-size:14px">'+e.one+'</div><h5>操作步骤 SOP</h5><ol>'+e.sop.map(s=>'<li>'+s+'</li>').join('')+'</ol><h5>常见误用</h5><div class="misuse">'+e.misuse+'</div><h5>关联概念</h5><div>'+e.lit.map(id=>'<span class="chip" onclick="closeModal();gotoNode(\''+id+'\')">'+NS[id].name+'</span>').join('')+'</div><div class="src">出处：'+e.src+'</div>';
+  html+='<div class="jump-row">';
+  html+='<button class="jump-btn hot" onclick="startGewuWithEntry(\''+e.id+'\')"><svg class="ic"><use href="#i-moon"/></svg><span>用这条目开始格物<small>追问剧本切换到 '+e.id+'</small></span></button>';
+  if(e.docs.length)html+='<button class="jump-btn" onclick="closeModal();jumpToDoc(\''+e.docs[0].d+'\','+e.docs[0].p+')"><svg class="ic"><use href="#i-book"/></svg><span>读相关原著<small>'+DOCS[e.docs[0].d].short+' · 第'+(e.docs[0].p+1)+'段</small></span></button>';
+  else html+='<button class="jump-btn off" disabled><svg class="ic"><use href="#i-book"/></svg><span>读相关原著<small>原著库扩充中</small></span></button>';
+  html+='<button class="jump-btn" onclick="closeModal();gotoNode(\''+e.lit[0]+'\')"><svg class="ic"><use href="#i-star"/></svg><span>去星图看关联<small>'+NS[e.lit[0]].name+'</small></span></button>';
+  html+='</div>';
+  document.getElementById('modal-box').innerHTML=html;
+  document.getElementById('modal-mask').classList.add('on');
+}
+function closeModal(){document.getElementById('modal-mask').classList.remove('on');}
+
+/* ==================== 日常格物 ==================== */
+const GW_SCRIPTS={
+ A1:[
+  {t:'今晚复盘。今天有什么烦扰着你？',opts:['模考排名下滑，怕被议论','计划又拖了一天','和家人拌了嘴']},
+  {t:'记下了。按爱比克泰德的办法来——这件事里，哪些部分在你能力之内，哪些不在？我猜你说的"排名"本身，就不归你管。',opts:['对，排名只是结果','但我能决定怎么复习']},
+  {t:'"怕被议论"——议论是别人的行为。按控制二分法，它落在哪一边？你替它操的心，是在为别人的事加班吗？',opts:['好像是……','那我到底该管什么？']},
+  {t:'好，到点了，追问到此为止。把这些拆一拆，归好类，生成你今晚的格物卡。',end:true}],
+ A4:[
+  {t:'今晚审欲望。最近有什么"非要不可"的东西？说出来，我们先给它定性。',opts:['一双新鞋','一次说走就走的旅行','某个App的会员']},
+  {t:'把它放进三个抽屉：自然且必要 / 自然但不必要 / 虚妄。你那个"非要不可"，进哪个抽屉？提示：如果它是别人告诉你"应该有"的，多半是第三个。',opts:['进第一个抽屉','进第二个','好像是第三个……']},
+  {t:'虚妄类的处理不是消灭，是认出它从哪来。到点了，归类，生成格物卡。',end:true}],
+ A11:[
+  {t:'你"懂很多道理"——今晚挑一条，说说你上周为它做过什么？',opts:['"要坚持锻炼"…','"要少刷手机"…','"别拖延"…']},
+  {t:'如果答不上来，按阳明的判据，它还不是"知"，只是"未验"。给它设计一个 48 小时内能完成的最小验证？',opts:['今晚先把手机放到客厅','明早先做 10 分钟最难的事','说得出，做不出……']},
+  {t:'最小行动写进格物卡，明天见分晓。到点了，出卡。',end:true}],
+ B1:[
+  {t:'今天有什么事，你给了一个复杂的解释？比如"他肯定针对我""这事背后一定有大棋"。',opts:['同桌今天没跟我打招呼','爸妈突然问我成绩','排名下滑一定是题太难']},
+  {t:'现在给同一个现象找一个最笨的解释。哪个需要的假设更少？',opts:['他可能就是没戴眼镜','他们只是想关心我','题确实难，大家分都低']},
+  {t:'剃刀不是永远对，但假设少的那版值得先信 48 小时。到点了，归类，出卡。',end:true}],
+ B6:[
+  {t:'今晚换个位置——你来当苏格拉底。用追问六式过一遍你今天想不通的那个问题。先澄清：你到底在问什么？',opts:['我该不该继续学生会','这次要不要艺考','他为什么不喜欢我']},
+  {t:'好。接着追问假设：你这个问法，默认了什么成立？把那个默认揪出来。',opts:['默认了"留在学生会才有价值"','默认了"艺考是更稳的路"','默认了"喜欢需要理由"']},
+  {t:'追问到自己看见答案就停——产婆术不负责接生，只负责阵痛。到点了，出卡。',end:true}]
+};
+const CARD_LABEL={A1:'「愿意其发生」练习',A4:'虚妄欲望清单',A11:'48 小时最小验证',B1:'剃刀结论',B6:'追问出来的答案',default:'下一步最小行动'};
+const CARD_TEXT={
+ A1:{bother:'模考排名下滑，怕被议论',ctrl:['我的复习节奏','错题复盘','难题策略'],un:['排名数字','他人议论','卷子难易'],practice:'「排名是反馈，不是判决。议论是别人的作业，不是我的。」',next:'今晚整理 5 道错题，明早拿去问老师；睡前把手机放到书桌外'},
+ A4:{bother:'"非要不可"的新款球鞋',ctrl:['我刷到它的频率','我的预算判断','"必要"的定义权'],un:['同学们的眼光','球鞋的发售节奏','过季不过时'],practice:'「虚妄欲望：把"别人有"错当成"我需要」',next:'把三个抽屉写在便签上，贴手机背面；下次想买先过抽屉'},
+ A11:{bother:'"要坚持锻炼"喊了两个月',ctrl:['今晚的第一个动作','明早的闹钟位置','"未验"状态的承认'],un:['上周已经荒废的天数','别人的自律程度','三分钟热度的体质'],practice:'「48小时最小验证：今晚 20:00，换上鞋下楼走 15 分钟」',next:'闹钟贴门口；下楼就是胜利，走不走随你'},
+ B1:{bother:'同桌今天没跟我打招呼',ctrl:['我的注意力分配','主动问一句的成本','证据的收集'],un:['他怎么想','他今天状态','他有没有看到我'],practice:'「最笨解释：他可能没戴眼镜 / 在发呆」',next:'明天见面先笑一个，验证最笨解释'},
+ B6:{bother:'我该不该继续留在学生会',ctrl:['我留下的真实理由','我的时间账','退出的胆量'],un:['部长的期待','"坚持下去才对"的叙事','别人怎么看我退出'],practice:'「追问答案：我留下是因为"沉没成本"，不是"我想要"」',next:'本周内找部长谈一次真实想法'}
+};
+function gwGenericScript(e){
+  return[
+    {t:'今晚用「'+e.name+'」。'+e.one+'——今天有什么事，想用它过一遍？',opts:['工作上的一件烦扰','人际上的一次摩擦','自己的一个老毛病']},
+    {t:'按 SOP 第一步来：'+e.sop[0]+'。具体到你今天这件事，怎么做？',opts:['我试着列出来','卡在第一步','换个条目试试']},
+    {t:'当心常见误用：'+e.misuse+'。到点了，归类，出卡。',end:true}];
+}
+let gwEntry='A1',gwStep=0,gwScript=GW_SCRIPTS.A1;
+function renderGewuPicker(){
+  document.getElementById('gewu-body').innerHTML=
+   '<div class="entry-picker">'+ENTRIES.map(e=>'<button class="pick'+(e.id===gwEntry?' on':'')+'" onclick="pickEntry(\''+e.id+'\')"><span class="eid">'+e.id+'</span><span><span class="nm">'+e.name+'</span><span class="on1">'+e.one+'</span></span></button>').join('')+'</div>'+
+   '<div style="display:flex;gap:10px;align-items:center"><button class="btn ochre" onclick="startGewu()">开始今晚复盘 →</button><span style="font-size:12px;color:var(--ink3)">追问剧本会随条目切换 · 三轮上限</span></div>'+
+   '<div id="gw-live" style="margin-top:20px"></div>';
+}
+function pickEntry(eid){gwEntry=eid;renderGewuPicker();}
+function startGewuWithEntry(eid){
+  switchTab('gewu');
+  requestAnimationFrame(()=>{gwEntry=eid;renderGewuPicker();startGewu();toast('已切换格物条目：'+eid+' '+ENTRIES.find(x=>x.id===eid).name);});
+}
+function startGewu(){
+  gwScript=GW_SCRIPTS[gwEntry]||gwGenericScript(ENTRIES.find(x=>x.id===gwEntry));
+  gwStep=0;
+  document.getElementById('gewu-body').innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:13px;color:var(--ink2)"><span class="chip entry" style="margin:0">'+gwEntry+' '+ENTRIES.find(x=>x.id===gwEntry).name+'</span>追问剧本已加载</div><div class="chat" id="gw-chat"></div><div id="gw-input"></div>';
+  gwAi(gwScript[0]);
+}
+let gwLastAnswer='';
+function gwAi(step){
+  if(aiLive()){
+    const e=ENTRIES.find(x=>x.id===gwEntry);
+    const chat=document.getElementById('gw-chat');
+    chat.insertAdjacentHTML('beforeend','<div class="msg ai" id="gw-typing"><div class="who">问津 AI · 格物教练</div>思索中…</div>');
+    chat.scrollTop=chat.scrollHeight;
+    const sys='你是「问津」App 的格物教练，陪用户做晚间复盘。当前方法论：'+e.name+'——'+e.one+'。SOP：'+e.sop.map((s,i)=>(i+1)+'.'+s).join('；')+'。常见误用（必要时点醒用户）：'+e.misuse+'。铁律：①一次只问一个具体问题，不一次抛多个 ②语气短句口语化，像朋友不像教科书 ③最多三轮，第三轮以"到点了，出卡"收尾 ④不替用户下结论，答案让他自己说';
+    const msg=gwStep===0?'（用户刚开始今晚复盘，抛出你的第一个问题）':'用户回答：「'+gwLastAnswer+'」。继续下一轮。';
+    aiCall(sys,msg).then(txt=>{
+      const t=document.getElementById('gw-typing');if(t)t.remove();
+      gwAiMock({t:txt,end:gwStep>=2,opts:gwStep>=2?[]:['我说不上来…','换个角度问']});
+    }).catch(()=>{
+      const t=document.getElementById('gw-typing');if(t)t.remove();
+      toast('模型没回应，切预置剧本');
+      const sc=GW_SCRIPTS[gwEntry]||gwGenericScript(e);
+      gwAiMock(sc[Math.min(gwStep,sc.length-1)]);
+    });
+    return;
+  }
+  gwAiMock(step);
+}
+function gwAiMock(step){
+  const chat=document.getElementById('gw-chat');
+  chat.insertAdjacentHTML('beforeend','<div class="msg ai"><div class="who">问津 AI · 格物教练</div>'+step.t+'</div>');
+  if(step.end){setTimeout(gwSort,500);return;}
+  const inp=document.getElementById('gw-input');
+  inp.innerHTML='<div class="quick-opts" id="gw-opts"></div><div class="chat-input"><input id="gw-in" placeholder="自己写，或点上面的快捷选项…"><button class="btn sm" onclick="gwNext(true)">回我</button></div>';
+  const box=document.getElementById('gw-opts');
+  (step.opts||[]).forEach(o=>{const b=document.createElement('button');b.textContent=o;b.onclick=()=>{gwMe(o);gwNext();};box.appendChild(b);});
+}
+function gwMe(text){
+  gwLastAnswer=text;
+  document.getElementById('gw-chat').insertAdjacentHTML('beforeend','<div class="msg me">'+text+'</div>');
+  document.getElementById('gw-input').innerHTML='';
+}
+function gwNext(custom){
+  if(custom){const v=document.getElementById('gw-in').value.trim();if(v)gwMe(v);}
+  gwStep++;
+  if(gwStep<gwScript.length)gwAi(gwScript[gwStep]);
+  else gwAi({t:'复盘完成。格物卡如下——',end:true});
+}
+function gwSort(){
+  const d=CARD_TEXT[gwEntry]||{ctrl:['我的复习节奏','错题复盘'],un:['排名数字','他人议论']};
+  const items=[...d.ctrl.map(t=>({t,side:'ctrl'})),...d.un.map(t=>({t,side:'un'}))];
+  let html='<h5 style="font-size:13.5px;margin-bottom:10px;color:var(--ink2)">第二步 · 二分归类（点击切换归属）</h5>';
+  html+='<div style="display:flex;gap:14px;flex-wrap:wrap"><div style="flex:1;min-width:240px"><div class="sort-col ctrl"><h5>可控 · 我的事</h5><div id="col-ctrl"></div></div></div><div style="flex:1;min-width:240px"><div class="sort-col unctrl"><h5>不可控 · 不归我管</h5><div id="col-un"></div></div></div></div>';
+  html+='<button class="btn" style="margin-top:14px" onclick="gwCard()">生成格物卡 →</button>';
+  document.getElementById('gewu-body').insertAdjacentHTML('beforeend',html);
+  function draw(){
+    ['ctrl','un'].forEach(side=>{
+      const col=document.getElementById('col-'+side);col.innerHTML='';
+      items.filter(i=>i.side===side).forEach(i=>{
+        const dEl=document.createElement('div');dEl.className='sort-item';
+        dEl.innerHTML='<span>'+i.t+'</span><span class="tag">点击移至'+(side==='ctrl'?'不可控':'可控')+'</span>';
+        dEl.onclick=()=>{i.side=side==='ctrl'?'un':'ctrl';draw();};
+        col.appendChild(dEl);
+      });
+    });
+  }
+  draw();
+}
+function gwCard(){
+  const d=CARD_TEXT[gwEntry];const e=ENTRIES.find(x=>x.id===gwEntry);
+  const lit=e.lit.filter(id=>!litNodes.includes(id));
+  let card='<div class="gw-card"><h4>格物卡 · 2026-10-23 · '+gwEntry+' '+e.name+'</h4>';
+  if(d){
+    card+='<div class="row"><div class="lab">烦扰</div><div class="val">'+d.bother+'</div></div>'+
+     '<div class="row"><div class="lab">可控 · 我的事</div><div class="val">'+d.ctrl.join(' · ')+'</div></div>'+
+     '<div class="row"><div class="lab">不可控 · 不归我管</div><div class="val">'+d.un.join(' · ')+'</div></div>'+
+     '<div class="row"><div class="lab">'+(CARD_LABEL[gwEntry]||CARD_LABEL.default)+'</div><div class="next serif">'+d.practice+'</div></div>'+
+     '<div class="row"><div class="lab">下一步最小行动</div><div class="next">'+d.next+'</div></div>';
+  }else{
+    card+='<div class="row"><div class="lab">烦扰</div><div class="val">已记录于追问对话</div></div>'+
+     '<div class="row"><div class="lab">下一步最小行动</div><div class="next">'+e.sop[0]+'（详见对话记录）</div></div>'+
+     '<div class="row"><div class="lab">当心</div><div class="next">'+e.misuse+'</div></div>';
+  }
+  card+='<div class="card-jumps"><button class="btn sm" onclick="saveGwCard()">存入并推送明日晨间</button>'+
+   '<button class="btn teal sm" onclick="saveGwCard();switchTab(\'book\')">'+ic('book')+' 沉淀进我的哲学书</button>'+
+   '<button class="btn ghost sm" onclick="switchTab(\'star\');showNode(\''+e.lit[0]+'\');litNode(\''+e.lit[0]+'\')">'+ic('star')+' 去星图看'+NS[e.lit[0]].name+'</button>'+
+   '<button class="btn ghost sm" onclick="renderGewuPicker()">'+ic('moon')+' 再复盘一次</button></div></div>';
+  document.getElementById('gewu-body').insertAdjacentHTML('beforeend',card);
+  toast('格物卡已生成'+(lit.length?' · 可点亮 '+lit.map(id=>NS[id].name).join('、'):''));
+  gwCard._newLit=lit;
+}
+function saveGwCard(){
+  const lit=gwCard._newLit||[];lit.forEach(id=>litNodes.push(id));
+  renderLit();renderBlind();renderHistory();
+  const d=CARD_TEXT[gwEntry];
+  pushMaterial('cards',{date:today(),entry:gwEntry,title:d?d.bother:'第 '+(materials.cards.length+1)+' 次格物',bother:d?d.bother:'',ctrl:d?d.ctrl:[],un:d?d.un:[],practice:d?d.practice:'',next:d?d.next:'',lit:lit});
+  toast('格物卡已存入 · 明日晨间 8:00 回看 · 已沉淀进我的哲学书 · 星图 +'+lit.length);
+}
+const GW_HISTORY=[
+ {date:'10-22',entry:'A4',title:'审了一双"非要不可"的球鞋',lit:['desire3']},
+ {date:'10-21',entry:'B1',title:'剃掉了"他针对我"的假设',lit:['occam']},
+ {date:'10-20',entry:'A1',title:'把"怕被议论"归到了不可控',lit:[]}
+];
+function renderHistory(){
+  document.getElementById('gw-history').innerHTML=GW_HISTORY.map(h=>
+   '<div class="mini-card" onclick="showNode(\''+(h.lit[0]||'dichotomy')+'\');switchTab(\'star\')"><div class="d">'+h.date+' · '+h.entry+'</div><div class="t">'+h.title+'</div>'+(h.lit.length?'<div style="font-size:11px;color:var(--accent)">'+ic('star')+' '+h.lit.map(id=>NS[id].name).join('、')+'</div>':'')+'</div>').join('');
+}
+function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),2800);}
+
+/* ==================== v0.3 通用工具与设置 ==================== */
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function ic(n){return '<svg class="ic"><use href="#i-'+n+'"/></svg>';}
+function today(){const d=new Date();return String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function download(text,name){const b=new Blob([text],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);}
+const SETTINGS_KEY='wj_settings_v1';
+const PROVIDERS={
+  ollama:{name:'本地 Ollama',base:'http://127.0.0.1:11434/v1',model:'qwen2.5:7b',key:false,note:'局域网常驻主机，断网也能用'},
+  deepseek:{name:'DeepSeek',base:'https://api.deepseek.com/v1',model:'deepseek-chat',key:true,note:'复杂讲解/批改的兜底'},
+  siliconflow:{name:'硅基流动',base:'https://api.siliconflow.cn/v1',model:'deepseek-ai/DeepSeek-V3',key:true,note:'国内聚合，模型多'},
+  custom:{name:'自定义（OpenAI 兼容）',base:'',model:'',key:true,note:'任何兼容 /chat/completions 的服务'}
+};
+const EDGE_VOICES=[
+  {id:'zh-CN-XiaoxiaoNeural',name:'晓晓 · 女声温暖（推荐）'},
+  {id:'zh-CN-YunxiNeural',name:'云希 · 男声少年'},
+  {id:'zh-CN-YunjianNeural',name:'云健 · 男声沉稳'},
+  {id:'zh-CN-XiaoyiNeural',name:'晓伊 · 女声甜美'},
+  {id:'zh-CN-YunyangNeural',name:'云扬 · 男声专业'},
+  {id:'zh-CN-XiaochenNeural',name:'晓辰 · 女声知性'},
+  {id:'zh-CN-shaanxi-XiaoniNeural',name:'晓妮 · 陕西话（老乡音）'},
+  {id:'zh-CN-liaoning-XiaobeiNeural',name:'晓北 · 东北话（整活用）'},
+  {id:'zh-HK-HiuMaanNeural',name:'港女 · 粤语'},
+  {id:'zh-TW-HsiaoChenNeural',name:'晓臻 · 台湾国语'}
+];
+const DEFAULT_SETTINGS={theme:'dark',provider:'ollama',baseURL:PROVIDERS.ollama.base,apiKey:'',model:PROVIDERS.ollama.model,primary:'ollama',fallback:'deepseek',offlineDegrade:true,fontSize:16,ttsEngine:'browser',ttsVoice:'',ttsRate:1,ttsContinuous:true,ttsBaseURL:'http://127.0.0.1:8787/v1',ttsKey:'',ttsEdgeVoice:'zh-CN-XiaoxiaoNeural'};
+let settings=loadSettings();
+function loadSettings(){try{const s={...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}')};
+  if(!PROVIDERS[s.primary])s.primary='ollama';if(!PROVIDERS[s.fallback])s.fallback='deepseek';
+  if(!PROVIDERS[s.provider])s.provider='ollama';
+  return s;}catch(e){return{...DEFAULT_SETTINGS};}}
+function saveSettings(){try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings));}catch(e){}aiVerified=false;updateModeChip();}
+
+/* ==================== v0.4 AI 路由：真 LLM 接入 + 三级降级 ==================== */
+let aiVerified=false;
+let aiTesting=false; /* 拉取/测试进行中：禁止 voiceschanged 重渲染设置页 */
+function aiLive(){
+  if(!aiVerified)return false;
+  const p=PROVIDERS[settings.primary];
+  if(!p||!settings.baseURL)return false;
+  if(p.key&&!settings.apiKey)return false;
+  return true;
+}
+async function aiCallRaw(key,msgs){
+  const p=PROVIDERS[key];if(!p)throw new Error('未知服务商');
+  const custom=key===settings.provider;
+  const base=((custom?settings.baseURL:p.base)||'').replace(/\/+$/,'');
+  const model=custom?settings.model:(p.model||settings.model);
+  if(!base)throw new Error('未配置 Base URL');
+  if(p.key&&!settings.apiKey)throw new Error('缺少 API Key');
+  const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),45000);
+  try{
+    const res=await fetch(base+'/chat/completions',{
+      method:'POST',signal:ctrl.signal,
+      headers:{'Content-Type':'application/json',...(p.key&&settings.apiKey?{Authorization:'Bearer '+settings.apiKey}:{})},
+      body:JSON.stringify({model:model,messages:msgs,temperature:.75,stream:false})});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const txt=data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content;
+    if(!txt)throw new Error('空响应');
+    return txt.trim();
+  }finally{clearTimeout(timer);}
+}
+async function aiCall(system,user,messages,onlyKey){
+  const msgs=messages||[{role:'system',content:system},{role:'user',content:user}];
+  const keys=onlyKey?[onlyKey]:[settings.primary,settings.fallback].filter((v,i,a)=>v&&a.indexOf(v)===i);
+  let lastErr=null;
+  for(const k of keys){try{return await aiCallRaw(k,msgs);}catch(e){lastErr=e;}}
+  throw lastErr||new Error('无可用服务');
+}
+/* ---- v2.0 主题系统（深夜壳 / 白日桌） ---- */
+const THEME_KEY='wj_theme';
+function themeNow(){return document.documentElement.dataset.theme==='light'?'light':'dark';}
+function applyTheme(t){
+  t=(t==='light')?'light':'dark';
+  document.documentElement.dataset.theme=t;
+  try{localStorage.setItem(THEME_KEY,t);}catch(e){}
+  settings.theme=t;
+  const mt=document.getElementById('meta-theme');if(mt)mt.setAttribute('content',t==='light'?'#F5F5F7':'#0B0E14');
+  const tx=document.getElementById('sb-theme-tx');if(tx)tx.textContent=t==='light'?'深色模式':'浅色模式';
+  const icn=document.getElementById('sb-theme-ic');
+  if(icn)icn.innerHTML=t==='light'?'<svg class="ic"><use href="#i-moon"/></svg>':'<svg class="ic"><use href="#i-sun"/></svg>';
+  document.querySelectorAll('.seg-theme button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+}
+function setTheme(t){applyTheme(t);}
+function toggleTheme(){applyTheme(themeNow()==='light'?'dark':'light');}
+function updateModeChip(){
+  const m=document.getElementById('sb-mode');if(!m)return;
+  if(aiLive())m.innerHTML='<span class="dot ok"></span>'+esc(PROVIDERS[settings.primary].name)+' 已接入';
+  else m.innerHTML='<span class="dot warn"></span>预置脚本 AI · 待配置';
+}
+function applySettings(){document.documentElement.style.setProperty('--reader-fs',settings.fontSize+'px');const fv=document.getElementById('font-val');if(fv)fv.textContent=settings.fontSize+'px';}
+function setProvider(k){const p=PROVIDERS[k];if(!p)return;settings.provider=k;
+  if(k!=='custom'){settings.baseURL=p.base;settings.model=p.model;if(!p.key)settings.apiKey='';}
+  saveSettings();renderSettings();toast('已切换服务商：'+p.name);}
+function fontSize(delta,abs){
+  if(abs!=null)settings.fontSize=parseInt(abs,10);
+  else settings.fontSize=Math.max(14,Math.min(22,settings.fontSize+delta));
+  saveSettings();applySettings();
+  if(document.getElementById('tab-set').classList.contains('on'))renderSettings();
+}
+function modelsEndpoint(){
+  const base=settings.baseURL.replace(/\/+$/,'');
+  if(settings.provider==='ollama')return{url:base.replace(/\/v1\/?$/,'')+'/api/tags',ollama:true};
+  return{url:base+'/models',ollama:false};
+}
+function setModelStatus(h){const el=document.getElementById('model-status');if(el)el.innerHTML=h;}
+async function fetchModels(){
+  setModelStatus('<span class="status-dot testing"></span>正在拉取模型列表 …');
+  aiTesting=true;
+  const ep=modelsEndpoint();
+  const headers={};if(PROVIDERS[settings.provider].key&&settings.apiKey)headers.Authorization='Bearer '+settings.apiKey;
+  const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),12000);
+  try{
+    const res=await fetch(ep.url,{headers,signal:ctrl.signal});clearTimeout(timer);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const j=await res.json();
+    const ids=ep.ollama?(j.models||[]).map(m=>m.model||m.name):((j.data||j.models||[]).map(m=>m.id||m.name).filter(Boolean));
+    if(!ids.length)throw new Error('列表为空');
+    const sel=document.getElementById('model-select');
+    if(sel){
+      sel.innerHTML='<option value="">— 拉到 '+ids.length+' 个模型，选一个自动填入 —</option>'+ids.map(id=>'<option'+(id===settings.model?' selected':'')+'>'+esc(id)+'</option>').join('');
+      sel.style.display='';
+    }
+    setModelStatus('<span class="status-dot ok"></span>已拉到 '+ids.length+' 个模型 · 下拉选择或保持手填');
+    if(!settings.model){settings.model=ids[0];saveSettings();const mi=document.getElementById('model-input');if(mi)mi.value=ids[0];}
+  }catch(e){
+    setModelStatus('<span class="status-dot warn"></span>拉取失败：'+esc(e.message)+'（可能被跨域拦截，可手动输入模型名）');
+  }finally{aiTesting=false;}
+}
+function pickModel(v){if(!v)return;settings.model=v;saveSettings();const mi=document.getElementById('model-input');if(mi)mi.value=v;
+  setModelStatus('<span class="status-dot ok"></span>已选 '+esc(v)+' · 记得点「测试连接」');}
+function setConnStatus(h){const el=document.getElementById('conn-status');if(el)el.innerHTML=h;}
+function testConnection(){
+  setConnStatus('<span class="status-dot testing"></span>正在连接 '+PROVIDERS[settings.provider].name+' …');
+  aiTesting=true;
+  const ep=modelsEndpoint();
+  const headers={};if(PROVIDERS[settings.provider].key&&settings.apiKey)headers.Authorization='Bearer '+settings.apiKey;
+  const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),15000);
+  fetch(ep.url,{headers,signal:ctrl.signal}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(j=>{
+    clearTimeout(timer);aiTesting=false;
+    const ids=ep.ollama?(j.models||[]).map(m=>m.model):((j.data||[]).map(m=>m.id));
+    aiVerified=true;updateModeChip();
+    setConnStatus('<span class="status-dot ok"></span>已接入'+(ids&&ids.length?' · 可用模型 '+ids.length+' 个':'')+' · 可点「拉取列表」选模型');
+  }).catch(()=>{
+    clearTimeout(timer);
+    if(PROVIDERS[settings.provider].key&&!settings.apiKey){
+      aiTesting=false;aiVerified=false;updateModeChip();
+      setConnStatus('<span class="status-dot warn"></span>还没填 API Key');return;
+    }
+    setConnStatus('<span class="status-dot testing"></span>模型列表不通，改用对话探测 …');
+    aiCall(null,null,null,settings.provider).then(()=>{
+      aiTesting=false;aiVerified=true;updateModeChip();
+      setConnStatus('<span class="status-dot ok"></span>对话探测成功 · 已接入 '+esc(settings.model));
+    }).catch(err=>{
+      aiTesting=false;aiVerified=false;updateModeChip();
+      setConnStatus('<span class="status-dot warn"></span>没连上：'+esc(err.message)+' · 不影响使用，自动走预置脚本');
+    });
+  });
+}
+function renderSettings(){
+  const p=PROVIDERS[settings.provider];
+  let vl=ttsVoices();const zh=vl.filter(v=>(v.lang||'').indexOf('zh')===0);if(zh.length)vl=zh;
+  let h='';
+  h+='<div class="set-card"><h4>'+ic('key')+'AI 服务（OpenAI 兼容）</h4>'
+   +'<div class="field"><label>服务商</label><select onchange="setProvider(this.value)">'+Object.keys(PROVIDERS).map(k=>'<option value="'+k+'"'+(settings.provider===k?' selected':'')+'>'+PROVIDERS[k].name+'</option>').join('')+'</select></div>'
+   +'<div class="field"><label>Base URL</label><input value="'+esc(settings.baseURL)+'" oninput="settings.baseURL=this.value;saveSettings()"></div>'
+   +'<div class="field"><label>API Key'+(p.key?'':'（本地服务不需要）')+'</label><input '+(p.key?'type="password"':'disabled')+' value="'+esc(settings.apiKey)+'" placeholder="'+(p.key?'sk-…（只保存在本机 localStorage）':'本地 Ollama 无需 Key')+'" oninput="settings.apiKey=this.value;saveSettings()"></div>'
+   +'<div class="field"><label>模型</label><div class="model-row"><input id="model-input" value="'+esc(settings.model)+'" oninput="settings.model=this.value;saveSettings()"><button class="btn ghost sm" onclick="fetchModels()">'+ic('refresh')+'拉取列表</button></div>'
+   +'<select id="model-select" style="display:none;margin-top:8px" onchange="pickModel(this.value)"></select>'
+   +'<div class="conn" id="model-status" style="margin-top:8px"></div></div>'
+   +'<div style="margin-top:2px"><button class="btn sm" onclick="testConnection()">'+ic('check')+'测试连接</button><span class="conn" id="conn-status" style="margin-left:10px"></span></div>'
+   +'<div class="set-note">'+p.note+'。「拉取列表」向 Base URL 请求 /models 自动填模型名（个别服务商可能被浏览器跨域挡下，失败可手填）。接入后：伴读、格物追问、论道、哲学书梳理全部走真实模型；任何一环失败自动降级，功能不中断。</div></div>';
+  h+='<div class="set-card"><h4>'+ic('refresh')+'模型路由与降级</h4>'
+   +'<div class="field"><label>主力（讲解 / 追问 / 格物）</label><select onchange="settings.primary=this.value;saveSettings();updateModeChip()">'+Object.keys(PROVIDERS).map(k=>'<option value="'+k+'"'+(settings.primary===k?' selected':'')+'>'+PROVIDERS[k].name+'</option>').join('')+'</select></div>'
+   +'<div class="field"><label>兜底（主力失败时顶上）</label><select onchange="settings.fallback=this.value;saveSettings()">'+Object.keys(PROVIDERS).map(k=>'<option value="'+k+'"'+(settings.fallback===k?' selected':'')+'>'+PROVIDERS[k].name+'</option>').join('')+'</select></div>'
+   +'<div class="switch-row"><input type="checkbox" id="off-degrade" '+(settings.offlineDegrade?'checked':'')+' onchange="settings.offlineDegrade=this.checked;saveSettings()"><label for="off-degrade">断网自动降级到预置脚本（推荐开启）</label></div>'
+   +'<div class="set-note">降级链：主力 → 兜底 → 预置脚本树。兜底走该服务商官方默认地址与默认模型（复用你保存的 Key）。任何一级挂了，格物和伴读都不会卡死。</div></div>';
+  h+='<div class="set-card"><h4>'+ic('sun')+'外观</h4>'
+   +'<div class="field"><label>主题 · 深夜壳 / 白日桌</label><div class="seg seg-theme">'
+   +'<button data-t="dark" class="'+(themeNow()==='dark'?'on':'')+'" onclick="setTheme(\'dark\')">'+ic('moon')+'深色</button>'
+   +'<button data-t="light" class="'+(themeNow()==='light'?'on':'')+'" onclick="setTheme(\'light\')">'+ic('sun')+'浅色</button>'
+   +'</div></div>'
+   +'<div class="field"><label>正文字号（当前 '+settings.fontSize+'px）</label><input type="range" min="14" max="22" value="'+settings.fontSize+'" oninput="fontSize(0,this.value)"></div>'
+   +'<div class="set-note">侧栏底部也有一键切换钮。主题偏好随设置一起备份 / 迁移。</div></div>';
+  h+='<div class="set-card"><h4>'+ic('book')+'阅读与朗读</h4>'
+   +'<div class="field"><label>朗读引擎</label><select onchange="settings.ttsEngine=this.value;saveSettings();renderSettings()"><option value="browser"'+(settings.ttsEngine!=='edge'?' selected':'')+'>浏览器内置（离线兜底 · 偏机械）</option><option value="edge"'+(settings.ttsEngine==='edge'?' selected':'')+'>Edge-TTS 神经网络音色（推荐）</option></select></div>'
+   +(settings.ttsEngine==='edge'
+   ?'<div class="field"><label>TTS 服务地址（OpenAI 兼容 /audio/speech）</label><input value="'+esc(settings.ttsBaseURL)+'" oninput="settings.ttsBaseURL=this.value;saveSettings()"></div>'
+   +'<div class="field"><label>API Key（本地桥接可留空）</label><input value="'+esc(settings.ttsKey)+'" placeholder="sk-…（只保存在本机）" oninput="settings.ttsKey=this.value;saveSettings()"></div>'
+   +'<div class="field"><label>音色</label><select onchange="settings.ttsEdgeVoice=this.value;saveSettings()">'+EDGE_VOICES.map(v=>'<option value="'+v.id+'"'+(settings.ttsEdgeVoice===v.id?' selected':'')+'>'+v.name+'</option>').join('')+'</select></div>'
+   +'<div class="set-note">微软神经网络语音，自然人声。在电脑运行附带的 edge-tts-bridge.py（手机端填电脑局域网 IP），连不上会自动退回系统音。</div>'
+   :'<div class="field"><label>朗读语音（系统 TTS）</label><select onchange="settings.ttsVoice=this.value;saveSettings()"><option value="">自动（优先中文）</option>'+vl.map(v=>'<option'+(settings.ttsVoice===v.name?' selected':'')+'>'+esc(v.name)+'（'+esc(v.lang)+'）</option>').join('')+'</select></div>'
+   +'<div class="set-note">系统音偏机械。想要自然人声 → 上面引擎切「Edge-TTS」。</div>')
+   +'<div class="field"><label>语速 <span id="rate-val">'+settings.ttsRate+'x</span></label><input type="range" min="0.6" max="1.8" step="0.1" value="'+settings.ttsRate+'" oninput="settings.ttsRate=parseFloat(this.value);document.getElementById(\'rate-val\').textContent=this.value+\'x\';saveSettings()"></div>'
+   +'<div class="switch-row"><input type="checkbox" id="tts-cont" '+(settings.ttsContinuous?'checked':'')+' onchange="settings.ttsContinuous=this.checked;saveSettings()"><label for="tts-cont">连续朗读（一段接一段）</label></div>'
+   +'</div>';
+  h+='<div class="set-card"><h4>'+ic('devices')+'数据管理（备份一律不删）</h4>'
+   +'<div style="display:flex;flex-direction:column;gap:9px">'
+   +'<button class="btn sm" onclick="exportAll()">'+ic('download')+'导出全部数据（JSON 备份）</button>'
+   +'<button class="btn ghost sm" onclick="exportBook()">'+ic('download')+'导出我的哲学书（.md）</button>'
+   +'<button class="btn ghost sm" onclick="document.getElementById(\'import-file\').click()">'+ic('upload')+'导入备份<input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)"></button>'
+   +'<button class="btn ghost sm" style="color:var(--red);border-color:var(--red)" onclick="clearAll()">'+ic('trash')+'清空本机全部数据</button>'
+   +'</div><div class="set-note">包含：设置、主题、星图点亮、我的书库、阅读进度、格物卡、论道与伴读记录。家训——删之前先备份。</div></div>';
+  document.getElementById('set-grid').innerHTML=h;
+}
+function exportAll(){
+  download(JSON.stringify({exportedAt:new Date().toISOString(),settings,materials,litNodes,userBooks:getUserBooks(),gwHistory:GW_HISTORY},null,2),'问津-数据备份-'+today()+'.json');
+  toast('备份已导出 · 家训：备份一律不删');
+}
+function importData(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      if(d.settings){settings={...settings,...d.settings};saveSettings();}
+      if(d.materials){materials=d.materials;saveMaterials();}
+      if(d.litNodes){litNodes=d.litNodes;renderLit();renderBlind();}
+      if(d.userBooks){saveUserBooks(d.userBooks);}
+      if(d.gwHistory){GW_HISTORY.length=0;d.gwHistory.forEach(x=>GW_HISTORY.push(x));renderHistory();}
+      applyTheme(settings.theme||'dark');applySettings();renderShelf();renderDoc();renderBookSide();renderBook();renderSettings();
+      toast('备份导入完成');
+    }catch(e){toast('这文件解析不了，确认是问津导出的 JSON');}
+    input.value='';
+  };
+  r.readAsText(f,'UTF-8');
+}
+function clearAll(){
+  if(!confirm('【危险操作】清空本机全部数据（设置 / 点亮 / 书库 / 格物 / 论道 / 伴读记录）？建议先导出备份。确定继续？'))return;
+  [SETTINGS_KEY,MAT_KEY,'wj_user_books'].forEach(k=>localStorage.removeItem(k));
+  Object.keys(localStorage).filter(k=>k.indexOf('wj_prog_')===0).forEach(k=>localStorage.removeItem(k));
+  location.reload();
+}
+
+/* ==================== v0.3 书架与自定义书籍 ==================== */
+const BUILTIN_DOCS=['epictetus','zhuangzi'];
+function getUserBooks(){try{return JSON.parse(localStorage.getItem('wj_user_books')||'[]');}catch(e){return[];}}
+function saveUserBooks(list){try{localStorage.setItem('wj_user_books',JSON.stringify(list));}catch(e){toast('本地存储空间不足，这本书没存下');}}
+function getDoc(id){return DOCS[id]||getUserBooks().find(b=>b.id===id)||DOCS.epictetus;}
+function progKey(id){return 'wj_prog_'+id;}
+function getProgress(id){id=id||curDoc;try{return JSON.parse(localStorage.getItem(progKey(id))||'[]');}catch(e){return[];}}
+function markRead(i){const p=getProgress();if(!p.includes(i)){p.push(i);localStorage.setItem(progKey(curDoc),JSON.stringify(p));renderShelf();}}
+function renderShelf(){
+  const ub=getUserBooks();let html='';
+  BUILTIN_DOCS.forEach(id=>{const d=DOCS[id];const pr=getProgress(id).length;
+    html+='<button class="book-btn'+(curDoc===id?' on':'')+'" onclick="selectDoc(\''+id+'\')">'+esc(d.short)+'<small>内置 · '+(pr?('已读 '+pr+'/'+d.paras.length+' 段'):'未开始')+'</small></button>';});
+  ub.forEach(b=>{const pr=getProgress(b.id).length;
+    html+='<button class="book-btn'+(curDoc===b.id?' on':'')+'" onclick="selectDoc(\''+b.id+'\')">'+esc(b.title)+'<small>我的书库 · '+(pr?('已读 '+pr+'/'+b.paras.length+' 段'):'未开始')+' <span class="book-del" onclick="event.stopPropagation();delBook(\''+b.id+'\')">移除</span></small></button>';});
+  document.getElementById('shelf-books').innerHTML=html;
+}
+function selectDoc(id){curDoc=id;renderShelf();renderDoc();}
+function delBook(id){
+  if(!confirm('从书架移除这本书？（只移"我的书库"，内置原著不受影响）'))return;
+  saveUserBooks(getUserBooks().filter(b=>b.id!==id));
+  if(curDoc===id){curDoc='epictetus';renderDoc();}
+  renderShelf();toast('已移除');
+}
+function loadUserBook(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  if(f.size>2*1024*1024){toast('文件超过 2MB，原型版先换小一点的（真机版无此限制）');input.value='';return;}
+  const r=new FileReader();
+  r.onload=()=>{
+    const text=String(r.result||'').replace(/\r\n?/g,'\n');
+    let paras=text.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
+    if(paras.length<2)paras=text.split(/\n/).map(s=>s.trim()).filter(Boolean);
+    if(!paras.length){toast('没读到有效文本');input.value='';return;}
+    const id='ub_'+Date.now().toString(36);
+    const ub=getUserBooks();
+    const title=f.name.replace(/\.(txt|md)$/i,'')||'未命名';
+    ub.push({id,title,meta:'我的书库 · 载入于 '+today(),custom:true,paras});
+    saveUserBooks(ub);input.value='';
+    selectDoc(id);
+    toast('《'+esc(title)+'》已加入书架 · '+paras.length+' 段');
+  };
+  r.readAsText(f,'UTF-8');
+}
+const readSec=document.getElementById('tab-read');
+readSec.addEventListener('dragover',e=>e.preventDefault());
+readSec.addEventListener('drop',e=>{
+  e.preventDefault();
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f&&/\.(txt|md)$/i.test(f.name))loadUserBook({files:[f],value:''});
+  else if(f)toast('只支持 .txt / .md');
+});
+
+/* ==================== v0.4 朗读（双引擎：edge 神经网络 / browser 兜底） ==================== */
+function ttsSupported(){return 'speechSynthesis' in window;}
+function ttsVoices(){try{return speechSynthesis.getVoices()||[];}catch(e){return[];}}
+function ttsPick(){const vs=ttsVoices();return vs.find(v=>v.name===settings.ttsVoice)||vs.find(v=>(v.lang||'').indexOf('zh')===0)||vs[0]||null;}
+let ttsReading=false,ttsAudio=null;
+function ttsQuiet(){if(ttsAudio){try{ttsAudio.pause();ttsAudio.src='';}catch(e){}ttsAudio=null;}if(ttsSupported())try{speechSynthesis.cancel();}catch(e){}}
+async function edgeSpeak(text){
+  const base=(settings.ttsBaseURL||'http://127.0.0.1:8787/v1').replace(/\/+$/,'');
+  const headers={'Content-Type':'application/json'};
+  if(settings.ttsKey)headers['Authorization']='Bearer '+settings.ttsKey;
+  const res=await fetch(base+'/audio/speech',{method:'POST',headers,body:JSON.stringify({
+    model:'edge-tts',voice:settings.ttsEdgeVoice||'zh-CN-XiaoxiaoNeural',input:text,
+    speed:settings.ttsRate||1,response_format:'mp3'})});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  return URL.createObjectURL(await res.blob());
+}
+function ttsReadPara(i){
+  const d=getDoc(curDoc);
+  if(!d||!d.paras||!d.paras[i]){ttsReading=false;return;}
+  if(settings.ttsEngine==='edge'){
+    ttsQuiet();ttsReading=true;hiPara(i);toast('正在合成第 '+(i+1)+' 段 …');
+    edgeSpeak(d.paras[i]).then(url=>{
+      if(!ttsReading)return;
+      ttsAudio=new Audio(url);
+      ttsAudio.onended=()=>{URL.revokeObjectURL(url);ttsAudio=null;
+        if(ttsReading&&settings.ttsContinuous&&i+1<d.paras.length)ttsReadPara(i+1);
+        else if(i+1>=d.paras.length){ttsReading=false;toast('朗读完了');}};
+      ttsAudio.onerror=()=>{toast('播放失败，已退回系统音');settings.ttsEngine='browser';saveSettings();renderSettings();ttsReadPara(i);};
+      ttsAudio.play().catch(()=>{toast('浏览器拦截了自动播放，请再点一次朗读按钮');ttsReading=false;clearParaHi();});
+    }).catch(err=>{toast('Edge-TTS 不可达（'+err.message+'），已退回系统音');settings.ttsEngine='browser';saveSettings();renderSettings();ttsReadPara(i);});
+    return;
+  }
+  if(!ttsSupported()){toast('当前浏览器不支持语音合成，换 Chrome / Edge 试试');return;}
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(d.paras[i]);
+  const v=ttsPick();if(v){u.voice=v;u.lang=v.lang;}else u.lang='zh-CN';
+  u.rate=settings.ttsRate;
+  u.onend=()=>{clearParaHi();
+    if(ttsReading&&settings.ttsContinuous&&i+1<d.paras.length)ttsReadPara(i+1);
+    else if(i+1>=d.paras.length){ttsReading=false;toast('朗读完了');}};
+  ttsReading=true;hiPara(i);speechSynthesis.speak(u);
+}
+function ttsReadAll(){ttsReading=true;ttsReadPara(0);toast('开始朗读'+(settings.ttsContinuous?'（连续模式）':'')+(settings.ttsEngine==='edge'?' · '+EDGE_VOICES.find(v=>v.id===settings.ttsEdgeVoice).name:''));}
+function ttsStop(){ttsReading=false;ttsQuiet();clearParaHi();}
+function hiPara(i){clearParaHi();const p=document.getElementById('para-'+i);if(p){p.classList.add('reading');p.scrollIntoView({behavior:'smooth',block:'center'});}}
+function clearParaHi(){document.querySelectorAll('#doc-main p.reading').forEach(p=>p.classList.remove('reading'));}
+
+/* ==================== v0.3 论道 ==================== */
+const NODE2PHILO={socrates:'socrates',epictetus:'epictetus',kant:'kant',nietzsche:'nietzsche',zhuangzi:'zhuangzi',wangym:'wangym'};
+const PHILOS=[
+ {id:'socrates',name:'苏格拉底',era:'前 469–399',av:'苏',style:'雅典牛虻 · 只问不答',
+  greet:'又见面了。先说好——我什么都不知道，所以问什么都可以。你今天想被我问倒，还是想问倒我？',
+  qs:['"认识自己"到底怎么认识？','为什么要做个好人？','你怕死吗？'],
+  qa:[
+   {k:['认识自己','我是谁','自己'],a:'"认识你自己"——可这话刻在德尔斐神庙门上，我只是复述。我问你：你说"认识自己"，是想拿到一个定义，还是想活出一种样子？要定义，写定义的人是你还是别人？要活法——你为什么还不去活，要来问我？'},
+   {k:['好人','道德','正义','善恶'],a:'别急着要答案。先回答：你说的"好人"，是让别人称赞的人，还是让灵魂内部井然有序的人？如果是后者——称赞归别人管，你管好你的秩序了吗？'},
+   {k:['死','怕'],a:'怕死？要么死是一场无梦的长眠，那没什么可怕；要么灵魂迁居别处，照样能聊天辩论——我在那边备好酒等你。真正该怕的不是死，是没审视过的活。今天你审视了什么？'}],
+  fb:'这个问题我答不了，但我可以反问：你问出这句话的时候，心里其实已经有答案了吧？它是什么？——别替我保守，说出来，我们一起审它。',
+  persona:'你是苏格拉底（前469-399），雅典哲人。铁律：①永不直接给答案，永远用追问回应，每次回复以一个问题收尾 ②自称"我"，称用户"朋友"，提到柏拉图时说"那个总爱记录的年轻人" ③语言短促犀利，善用日常事物作类比（鞋匠、农夫、接生、行军） ④用户索要标准答案时，先指出他问题里藏着的预设 ⑤禁用现代术语和网络用语，每次回复不超过150字'},
+ {id:'epictetus',name:'爱比克泰德',era:'50–135',av:'爱',style:'奴隶出身的自由人 · 一刀切两半',
+  greet:'我当过奴隶，所以知道真正的枷链不在脚踝，在判断里。今天有什么人、什么事让你觉得不自由？说给我听。',
+  qs:['总是焦虑未来怎么办？','怎么面对别人的羞辱？','自由到底是什么？'],
+  qa:[
+   {k:['焦虑','未来','担心'],a:'焦虑未来，是因为你把"还没发生的事"请进了"能力之内"。可未来归未来管，你归你管。问问自己：此刻，在这一口气里，有什么是我能做的？做那件，剩下的交给该接管的。'},
+   {k:['羞辱','别人','评价','看法'],a:'羞辱你的不是那句话，是你对那句话的判断。别人扔过来的石头，接不接、接住了往哪放，是你的技艺。练好这个——就没人能碰你。'},
+   {k:['自由'],a:'自由不是想做什么就做什么，是想不做什么就能不做什么。欲望、厌恶、判断——把这些练成你的，外界就只剩下"材料"二字。'}],
+  fb:'把它拆开：哪部分是你的行为，哪部分不是？只对第一部分使劲——这就是我全部的教学。',
+  persona:'你是爱比克泰德（50-135），奴隶出身的斯多葛哲人。铁律：①回答最终都落到"能力之内/能力之外"的切分上 ②语气温和但笃定，像经历过苦难的老人 ③常提自己为奴的经历，用枷链、剧场、宴席、航船作类比 ④每次回复结尾给一个"此刻就能做的一件事" ⑤禁用现代术语，每次回复不超过150字'},
+ {id:'kant',name:'康德',era:'1724–1804',av:'康',style:'柯尼斯堡的钟 · 先验追问',
+  greet:'请坐。休谟把我从独断论的迷梦里唤醒，从此我不敢跳过"条件"谈"知识"。你想问什么？请尽量精确。',
+  qs:['道德到底有没有标准？','人为什么必须有尊严？','"人为自然立法"是什么意思？'],
+  qa:[
+   {k:['道德','标准','善恶'],a:'道德标准不在后果里——后果是世界定的，时好时坏。标准只能在"意志的准则"里：你的行为准则，能不能同时成为所有人都遵守的法则？能，才是善的。试试用这把尺子量你今天想做的那件事。'},
+   {k:['尊严','人'],a:'人有尊严，因为人是目的，不只是手段。你把别人当工具时，也默认了别人可以同样对你——这条律令不许有例外，包括对你自己的妥协。'},
+   {k:['立法','自然','科学'],a:'不是自然服从我们的概念，而是我们的感性形式（时间、空间）和知性范畴，为一切经验颁布了普遍条件。所以科学知识必然普遍有效——但它只覆盖现象。物自体那边，我们无权发言。'}],
+  fb:'在回答之前，请先规定你的问题：你用的概念，其可能性条件是什么？——追问条件，是我的方法。',
+  persona:'你是康德（1724-1804），柯尼斯堡的哲人。铁律：①回答前先审查问题的"可能性条件"——追问用户的概念凭什么成立 ②强调意志自律与普遍法则，反对用后果论事 ③语气严谨礼貌，称用户"朋友"，偶尔提及休谟将你从独断论迷梦中唤醒 ④用语精确如钟表，句子结构完整 ⑤禁用网络用语，每次回复不超过150字'},
+ {id:'nietzsche',name:'尼采',era:'1844–1900',av:'尼',style:'锤子哲学家 · 重估一切价值',
+  greet:'欢迎。不过提醒你：我这里的答案都会咬人。你要问的那个问题，多半是别人替你问的。来吧。',
+  qs:['"成为自己"怎么操作？','人为什么需要痛苦？','你反对道德吗？'],
+  qa:[
+   {k:['成为自己','做自己'],a:'先问：你说的"自己"，是你，还是父母的期望、学校的排名、朋友圈的品味拼起来的那个东西？把这些一片片剥掉，剩下的那个——你敢不敢让它活？成为自己不是发现，是创造。'},
+   {k:['痛苦','苦难','磨难'],a:'痛苦不是赎罪券，是力量增长的证据。凡不能杀死我的——注意，不是"使我更强"这种鸡汤，而是：它没有杀死我这件事本身，说明我还有余力。拿这余力去创造，别拿去控诉。'},
+   {k:['道德','反对','善恶'],a:'我反对的不是道德，是"只有一种道德"。奴隶道德把软弱包装成善良，把强者打成恶。要做的不是作恶，是超越——创造属于你的价值，然后为它负责到底。'}],
+  fb:'这问题里藏着谁的声音？你父母的、学校的、还是"大家都这么觉得"的？先把那个声音揪出来——它多半就是你问题的病根。',
+  persona:'你是尼采（1844-1900），锤子哲学家。铁律：①回答带攻击性但出于善意——先指出用户问题里"别人的声音"（父母/学校/流俗的腔调） ②核心主题：重估价值、成为自己、痛苦与力量的增长 ③善用反转和金句，严禁鸡汤腔 ④自称"我"，轻蔑地称"那些道德编纂者" ⑤可以嘲讽，但嘲讽之后必须给一条建设性的路，每次回复不超过150字'},
+ {id:'zhuangzi',name:'庄子',era:'约前 369–286',av:'庄',style:'梦里造境的人 · 用寓言消解问题',
+  greet:'你来了。先不问大事——昨晚你做梦了吗？梦里你是蝴蝶，还是蝴蝶梦里是你？想好了再提问。',
+  qs:['人生的意义是什么？','怎么才能不内耗？','有用和无用哪个重要？'],
+  qa:[
+   {k:['意义','人生'],a:'你问"意义"，就像问一条鱼"水往哪流"。鱼不问，鱼游。你此刻喘的这口气，需要意义证书吗？先把"意义"这个问题养着——别饿着它，也别喂太胖。'},
+   {k:['内耗','焦虑','累'],a:'你在跟"全牛"较劲呢。牛身上本来有缝——事情与事情之间的空隙。别拿脑袋撞骨节。找到缝，刀自然就走过去了。十九年的功夫，练的就是找缝。'},
+   {k:['有用','无用','树'],a:'那棵没用的树，因此活到了千年。有用，是被别人用的另一个说法。你急着"有用"，是急着被谁用？先学"无用"——保命，且自在。'}],
+  fb:'这问题我不答，我给你讲个故事吧——有一回，有人问……（原型版庄子就此打住，真 LLM 上线后他话多得很）。',
+  persona:'你是庄子（约前369-286），道家哲人。铁律：①多用寓言和故事回应，少下断言 ②核心母题：梦蝶、庖丁解牛、无用之树、相忘于江湖、鱼相忘乎江湖 ③语气飘逸幽默，偶尔自嘲，称用户"这位朋友" ④用户问"怎么办"时，先消解问题本身，再指出"骨节之间的缝"在哪 ⑤禁用现代术语，每次回复不超过150字'},
+ {id:'wangym',name:'王阳明',era:'1472–1529',av:'王',style:'龙场悟道的人 · 知行即本体',
+  greet:'心即理——这话我在龙场想明白了。你今日来，是"知"了呢，还是只想来"议"一议？',
+  qs:['知和行到底哪个先？','为什么懂了道理还是过不好？','怎么修炼内心？'],
+  qa:[
+   {k:['知','行','先后'],a:'知是行之始，行是知之成。没有"先知后行"，就像没有"先饿了再吃饭"——饿和吃本来是一件事。你说"等想明白了再做"，那"想明白"这件事本身，做了吗？'},
+   {k:['道理','过不好','懂'],a:'知而不行，只是未知。你说懂了"要坚持"，却两周没下楼跑过一次——那你知道的就不是"坚持"，是"坚持"这两个字的笔画。去跑一次，才算真知道。'},
+   {k:['修炼','内心','静'],a:'不是在安静处求个静，是在事上磨。开会时被顶撞、排队时被插队——心动的那一刻，正是用功的那一刻。避世打坐，是躲考场。'}],
+  fb:'这话你"知"了。那么问题来了：你打算什么时候"行"？——别回答我，回答你自己。',
+  persona:'你是王阳明（1472-1529），心学集大成者。铁律：①回答紧扣"知行合一"——知而不行只是未知 ②强调事上磨炼，反对避世打坐 ③语气恳切带锋芒，像龙场悟道后的老兵，称用户"你" ④用户抱怨"懂道理还是过不好"时，直接戳破：你行的那个，才是你知道的 ⑤可用军旅、农耕、铸剑作类比，每次回复不超过150字'},
+];
+const PHIL_GRADIENTS={socrates:{from:'#4FD1C5',to:'#1E7A8C'},epictetus:{from:'#7DA7D9',to:'#3D5A80'},kant:{from:'#A8B3C4',to:'#4A5568'},nietzsche:{from:'#FF6A4D',to:'#B02E2A'},zhuangzi:{from:'#E8B84B',to:'#9A6B1F'},wangym:{from:'#8B7CF6',to:'#4C3F91'}};
+let curPhil='socrates';
+const debateHistory={};
+function renderPhilList(){
+  document.getElementById('phil-list').innerHTML=PHILOS.map(p=>
+   '<button class="phil-btn'+(p.id===curPhil?' on':'')+'" onclick="openDebate(\''+p.id+'\')"><span class="av" style="background:linear-gradient(135deg,'+(PHIL_GRADIENTS[p.id]?PHIL_GRADIENTS[p.id].from:'var(--jade)')+','+(PHIL_GRADIENTS[p.id]?PHIL_GRADIENTS[p.id].to:'var(--steel)')+')">'+p.av+'</span><span><span class="nm">'+p.name+'</span><br><span class="era">'+p.era+'</span></span></button>').join('');
+}
+function openDebate(pid){curPhil=pid;switchTab('debate');renderPhilList();renderDebate();}
+function renderDebate(){
+  const p=PHILOS.find(x=>x.id===curPhil);
+  const h=debateHistory[curPhil]||[];
+  document.getElementById('debate-head').innerHTML='<h3 class="serif">'+p.name+' <span style="font-size:12px;color:var(--ink3);font-weight:400">'+p.era+'</span></h3><span class="style">'+p.style+'</span>'+(h.length>=2?'<button class="btn ghost sm" style="margin-left:auto" onclick="saveDebate()">'+ic('book')+' 存入我的哲学书</button>':'');
+  const chat=document.getElementById('debate-chat');
+  chat.innerHTML=h.length
+   ?h.map(m=>m.who==='me'?'<div class="msg me">'+esc(m.text)+'</div>':'<div class="msg ai"><div class="who">'+p.name+'</div>'+esc(m.text)+'</div>').join('')
+   :'<div class="msg ai"><div class="who">'+p.name+'</div>'+p.greet+'</div>';
+  chat.scrollTop=chat.scrollHeight;
+  document.getElementById('debate-input').innerHTML='<div class="d-quick">'+p.qs.map(q=>'<button onclick="debateSend(this.textContent)">'+esc(q)+'</button>').join('')+'</div><div class="chat-input"><input id="debate-in" placeholder="直接问 '+p.name+'…" onkeydown="if(event.key===\'Enter\')debateSend(this.value)"><button class="btn sm" onclick="debateSend(document.getElementById(\'debate-in\').value)">问</button></div>';
+}
+function debateSend(text){
+  text=(text||'').trim();if(!text)return;
+  (debateHistory[curPhil]=debateHistory[curPhil]||[]).push({who:'me',text});
+  renderDebate();
+  const p=PHILOS.find(x=>x.id===curPhil);
+  if(aiLive()){
+    const chat=document.getElementById('debate-chat');
+    chat.insertAdjacentHTML('beforeend','<div class="msg ai" id="typing-bubble"><div class="who">'+p.name+'</div>思索中…</div>');
+    chat.scrollTop=chat.scrollHeight;
+    const msgs=[{role:'system',content:p.persona}].concat(debateHistory[curPhil].map(m=>({role:m.who==='me'?'user':'assistant',content:m.text})));
+    aiCall(null,null,msgs).then(txt=>{
+      const t=document.getElementById('typing-bubble');if(t)t.remove();
+      debateHistory[curPhil].push({who:'ai',text:txt});
+      renderDebate();
+    }).catch(()=>{
+      const t=document.getElementById('typing-bubble');if(t)t.remove();
+      toast(p.name+'掉线了，切预置剧本');
+      debateMockReply(text);
+    });
+    return;
+  }
+  debateMockReply(text);
+}
+function debateMockReply(text){
+  const p=PHILOS.find(x=>x.id===curPhil);
+  setTimeout(()=>{
+    const hit=p.qa.find(x=>x.k.some(k=>text.includes(k)));
+    debateHistory[curPhil].push({who:'ai',text:hit?hit.a:p.fb});
+    renderDebate();
+  },850);
+}
+function saveDebate(){
+  const h=debateHistory[curPhil]||[];
+  if(h.length<2){toast('至少聊两个回合再存');return;}
+  const p=PHILOS.find(x=>x.id===curPhil);
+  const firstMe=h.find(m=>m.who==='me');
+  pushMaterial('debates',{date:today(),phil:p.name,title:firstMe?firstMe.text:'与'+p.name+'论道',lines:h.map(m=>({who:m.who,text:m.text}))});
+}
+
+/* ==================== v0.3 我的哲学体系 ==================== */
+const MAT_KEY='wj_materials_v1';
+let materials={cards:[],debates:[],readings:[]};
+function loadMaterials(){try{return JSON.parse(localStorage.getItem(MAT_KEY)||'null')||{cards:[],debates:[],readings:[]};}catch(e){return{cards:[],debates:[],readings:[]};}}
+function saveMaterials(){try{localStorage.setItem(MAT_KEY,JSON.stringify(materials));}catch(e){}}
+function pushMaterial(type,item){materials[type].unshift(item);saveMaterials();renderBookSide();if(document.getElementById('tab-book').classList.contains('on'))renderBook();toast('已沉淀进「我的哲学书」');}
+function initMaterials(){
+  if(localStorage.getItem(MAT_KEY)){materials=loadMaterials();return;}
+  materials={
+   cards:GW_HISTORY.map(h=>({date:h.date,entry:h.entry,title:h.title,bother:h.title,ctrl:[],un:[],practice:'',next:'',lit:h.lit})),
+   debates:[{date:'10-21',phil:'尼采',title:'"成为自己"怎么操作',lines:[{who:'me',text:'尼采，"成为自己"到底怎么操作？'},{who:'ai',text:'先问：你说的"自己"是你，还是父母期望、学校排名、朋友圈品味拼起来的东西？把这些剥掉，剩下的那个——你敢让它活吗？'}]}],
+   readings:[{date:'10-20',doc:'《论说集》开篇',quote:'真正的损害不在于事情本身，而在于你对事情的判断',skill:'讲解',reply:'痛苦不来自事件，来自对事件的判断——CBT 的原型。'}]
+  };
+  saveMaterials();
+}
+function bookScore(){return materials.cards.length*2+materials.debates.length+materials.readings.length;}
+function renderBookSide(){
+  const c=materials.cards.length,d=materials.debates.length,r=materials.readings.length;
+  const score=bookScore();const pct=Math.min(100,Math.round(score/40*100));
+  const stage=pct<20?'萌芽':pct<50?'小册':pct<80?'逼近成稿':'成书';
+  document.getElementById('book-stats').innerHTML='<h4 style="font-size:13px;margin-bottom:10px;color:var(--ink2)">我的沉淀</h4><div class="stat-row"><div class="stat"><b>'+c+'</b><span>格物卡</span></div><div class="stat"><b>'+d+'</b><span>论道</span></div><div class="stat"><b>'+r+'</b><span>伴读问答</span></div></div>';
+  document.getElementById('book-progress').innerHTML='<h4 style="font-size:13px;margin-bottom:10px;color:var(--ink2)">成书进度 · '+stage+'</h4><div style="height:9px;background:var(--line);border-radius:5px;overflow:hidden"><i style="display:block;height:100%;width:'+Math.max(pct,3)+'%;background:var(--accent);border-radius:5px;transition:width .5s"></i></div><div style="font-size:12px;color:var(--ink3);margin:8px 0 12px">'+pct+'% · 素材权重：格物卡 ×2 · 再沉淀 '+Math.max(0,40-score)+' 点就成书</div><div style="display:flex;flex-direction:column;gap:8px"><button class="btn sm" onclick="synthesizeBook()">'+ic('sparkle')+' 让 AI 梳理成书</button><button class="btn ghost sm" onclick="exportBook()">'+ic('download')+' 导出 .md</button></div>';
+}
+function renderBook(){
+  const main=document.getElementById('book-main');
+  const c=materials.cards,d=materials.debates,r=materials.readings;
+  if(!c.length&&!d.length&&!r.length){
+    main.innerHTML='<div class="book-empty"><div>'+ic('book')+'</div><p style="margin:16px 0 6px;font-size:15px">书还是空的。</p><p style="font-size:13px">去日常格物复盘今晚，或去论道找位哲学家聊聊——每一笔都会沉淀到这里，慢慢长成你的书。</p><div style="margin-top:20px;display:flex;gap:10px;justify-content:center"><button class="btn sm" onclick="switchTab(\'gewu\')">'+ic('moon')+' 去格物</button><button class="btn ghost sm" onclick="switchTab(\'debate\')">'+ic('scale')+' 去论道</button></div></div>';
+    return;
+  }
+  const pct=Math.min(100,Math.round(bookScore()/40*100));
+  let h='<div class="book-cover"><div class="bc-kicker">WENJIN PRESS · 我的哲学书</div><h2 class="serif">一个正在成为自己的人</h2><div class="bc-meta">第 '+(c.length+1)+' 次梳理 · 收录 '+c.length+' 条格物 · '+d.length+' 场论道 · '+r.length+' 次伴读问答 · 成书进度 '+pct+'%</div></div>';
+  const so=window.__synthOverride||{};
+  h+='<div class="chapter"><h3 class="serif">序言 · 这本书怎么来的</h3><p>'+(so.preface||'这不是从谁那里抄来的体系，是你自己一次一次复盘、一场一场辩论、一句一句追问，攒出来的。苏格拉底说"未经审视的人生不值得过"——这本书，就是审视本身的沉积岩。AI 不替你思考，只负责把你散落的思考归拢起来，指给你看。')+'</p></div>';
+  h+='<div class="chapter"><h3 class="serif">第一章 · 我的烦恼地图</h3>';
+  h+=c.length?c.map(x=>'<div class="bk-item"><span class="bk-date">'+x.date+'</span>'+esc(x.bother||x.title)+'</div>').join(''):'<p class="hint">格物卡会在这里画出你的烦恼地形。</p>';
+  h+='</div>';
+  h+='<div class="chapter"><h3 class="serif">第二章 · 我在用的方法</h3>';
+  const ec={};c.forEach(x=>ec[x.entry]=(ec[x.entry]||0)+1);
+  const ek=Object.keys(ec).sort((a,b)=>ec[b]-ec[a]);
+  h+=ek.length?ek.map(k=>{const e=ENTRIES.find(x=>x.id===k);return '<div class="bk-item"><span class="bk-date">×'+ec[k]+'</span><b>'+(e?e.name:k)+'</b> · '+(e?e.one:'')+'</div>';}).join(''):'<p class="hint">用过的格物条目会统计到这里。</p>';
+  h+='</div>';
+  h+='<div class="chapter"><h3 class="serif">第三章 · 我的命题</h3>';
+  const props=c.filter(x=>x.practice).map(x=>x.practice);
+  h+=props.length?'<ol class="props">'+props.map(p=>'<li class="serif">'+esc(p)+'</li>').join('')+'</ol>':'<p class="hint">格物卡里的"练习句"会在这里凝结成你的命题——先从 A1 开始。</p>';
+  h+='</div>';
+  h+='<div class="chapter"><h3 class="serif">第四章 · 我的疑问与对话</h3>';
+  if(d.length)h+=d.map(x=>'<div class="bk-item"><span class="bk-date">'+x.date+'</span><b>'+ic('scale')+' '+esc(x.phil)+'</b> · '+esc(x.title)+'</div>').join('');
+  if(r.length)h+=r.map(x=>'<div class="bk-item"><span class="bk-date">'+x.date+'</span><b>'+ic('book')+' '+esc(x.doc)+'</b> · '+x.skill+'「'+esc(x.quote)+'」</div>').join('');
+  if(!d.length&&!r.length)h+='<p class="hint">论道和伴读的问答会流到这里。</p>';
+  h+='</div>';
+  const te=ENTRIES.find(x=>x.id===ek[0]);
+  const so2=window.__synthOverride||{};
+  h+='<div class="chapter"><h3 class="serif">尾声 · AI 的下一句叮嘱</h3><p>'+(so2.coda?esc(so2.coda):(te?('你反复回到 '+ek[0]+' '+te.name+'——它已经是你的"第一方法"。下一步：把它的 SOP 用到一件你从未用它过的事上，然后回来记录哪里不灵。'+(te.misuse?'另外，当心它的常见误用：'+esc(te.misuse):'')):'继续沉淀。方法要用过才算数。'))+'</p></div>';
+  main.innerHTML=h;
+}
+function synthesizeBook(){
+  document.getElementById('book-main').innerHTML='<div class="synth"><div class="synth-dot"></div><div>AI 梳理中… 正在归并 '+materials.cards.length+' 条格物、'+materials.debates.length+' 场论道、'+materials.readings.length+' 次问答</div></div>';
+  if(aiLive()){
+    const c=materials.cards,d=materials.debates,r=materials.readings;
+    const digest='【格物卡】\n'+c.slice(0,12).map(x=>'- ['+(x.entry||'')+'] '+(x.bother||x.title)+' → '+(x.practice||'')).join('\n')
+      +'\n【论道】\n'+d.slice(0,6).map(x=>'- 与'+x.phil+'聊「'+x.title+'」').join('\n')
+      +'\n【伴读问答】\n'+r.slice(0,6).map(x=>'- '+x.skill+'「'+x.quote+'」').join('\n');
+    aiCall('你是「问津」的哲学编辑。下面是用户的哲学沉淀素材。请写两段中文：①150字左右「序言」——从这些素材读出这个人的思考轨迹与性格，温暖但诚实，不吹捧 ②100字左右「叮嘱」——指出他最该突破的一点。只输出两段，分别以【序言】【叮嘱】开头。',digest)
+      .then(txt=>{
+        const m1=txt.match(/【序言】([\s\S]*?)(?=【叮嘱】|$)/),m2=txt.match(/【叮嘱】([\s\S]*?)$/);
+        window.__synthOverride={preface:(m1?m1[1]:txt).trim(),coda:m2?m2[1].trim():''};
+        renderBook();renderBookSide();toast('梳理完成 · AI 执笔的序言已就位');
+      }).catch(()=>{renderBook();renderBookSide();toast('梳理完成 · 模型掉线，用本地版');});
+    return;
+  }
+  setTimeout(()=>{renderBook();renderBookSide();toast('梳理完成 · 你的哲学书已更新');},1400);
+}
+function exportBook(){
+  const c=materials.cards,d=materials.debates,r=materials.readings;
+  let md='# 我的哲学书\n\n> 由问津 App 自动梳理 · '+today()+' · 收录 '+c.length+' 条格物 / '+d.length+' 场论道 / '+r.length+' 次伴读问答\n\n';
+  md+='## 序言 · 这本书怎么来的\n\n这不是从谁那里抄来的体系，是你自己一次一次复盘、一场一场辩论攒出来的。\n\n';
+  md+='## 第一章 · 我的烦恼地图\n\n'+(c.length?c.map(x=>'- '+x.date+' '+(x.bother||x.title)).join('\n'):'（空）')+'\n\n';
+  const ec={};c.forEach(x=>ec[x.entry]=(ec[x.entry]||0)+1);
+  md+='## 第二章 · 我在用的方法\n\n'+(Object.keys(ec).length?Object.keys(ec).sort((a,b)=>ec[b]-ec[a]).map(k=>{const e=ENTRIES.find(x=>x.id===k);return '- ×'+ec[k]+' '+(e?e.name:k)+(e?'：'+e.one:'');}).join('\n'):'（空）')+'\n\n';
+  md+='## 第三章 · 我的命题\n\n'+(c.filter(x=>x.practice).length?c.filter(x=>x.practice).map(x=>'1. '+x.practice).join('\n'):'（空）')+'\n\n';
+  md+='## 第四章 · 我的疑问与对话\n\n'+(d.length?d.map(x=>'- '+x.date+' 论道 · '+x.phil+'：'+x.title).join('\n'):'')+'\n'+(r.length?r.map(x=>'- '+x.date+' 伴读 · '+x.doc+' · '+x.skill+'「'+x.quote+'」').join('\n'):'')+'\n\n';
+  download(md,'我的哲学书-'+today()+'.md');
+  toast('哲学书已导出 .md');
+}
+
+/* ==================== 启动 ==================== */
+document.body.dataset.tab='star';
+applyTheme(localStorage.getItem(THEME_KEY)||settings.theme||'dark');applySettings();initMaterials();buildGraph();renderShelf();renderDoc();renderMethods();renderGewuPicker();renderHistory();renderPhilList();renderDebate();renderSettings();renderBookSide();renderBook();updateModeChip();
+if('speechSynthesis' in window){var _vt=null;speechSynthesis.onvoiceschanged=()=>{if(aiTesting)return;if(document.getElementById('tab-set').classList.contains('on')){clearTimeout(_vt);_vt=setTimeout(function(){if(!aiTesting)renderSettings();},600);}};}
+</script>
+</body>
+</html>
