@@ -22,9 +22,11 @@ import {
 } from '@wenjin/core';
 import { useCore } from '../providers';
 import { useNav } from '../nav';
+import { useNarrow } from '../useNarrow';
 
 const core = useCore();
 const nav = useNav();
+const narrow = useNarrow();
 
 /** 外部（方法论库的「读相关原著」）指定的定位目标 */
 const props = defineProps<{ jump?: { id: string; para: number } | null }>();
@@ -107,9 +109,17 @@ function toggleRead(i: number): void {
 /* ---------------- 划词与三问 ---------------- */
 
 const quote = ref('');
-const askbarOpen = computed(() => quote.value.length > 0);
+/**
+ * 浮条的显隐条件除了「有选中文本」，还要「还没开始问答」——
+ * 否则提问后 quote 保留着（面板顶部要显示引文、存书也要用），
+ * 浮条就会一直压在答案上面不下去。
+ */
+const askbarOpen = computed(() => quote.value.length > 0 && panel.value.asked === null);
 
-function onMouseUp(): void {
+/**
+ * 读当前选区。电脑端 mouseup / 手机端 selectionchange 共用这一份逻辑。
+ */
+function readSelection(): void {
   const sel = window.getSelection();
   const text = sel?.toString().trim() ?? '';
   if (!text || !sel) return;
@@ -117,8 +127,27 @@ function onMouseUp(): void {
   // 只有在正文里划的词才算，避免侧栏里随便一拖就弹三问
   const anchor = sel.anchorNode;
   if (docMain.value && anchor && docMain.value.contains(anchor)) {
-    quote.value = text.slice(0, 240);
+    const next = text.slice(0, 240);
+    // 换了新选区（或上一轮问答已结束又重新划句）：收掉上一轮，浮条才能再次出现
+    if (next !== quote.value || panel.value.asked !== null) {
+      resetPanel();
+      quote.value = next;
+    }
   }
+}
+
+function onMouseUp(): void {
+  readSelection();
+}
+
+/**
+ * 3.3.2 修：手机上长按选词是触摸手势，浏览器根本不合成 mouseup，
+ * 上一版只听 mouseup，导致手机端三问浮条永远弹不出来、导读 AI 整条链路进不去。
+ * selectionchange 是触摸屏上唯一可靠的选区事件（长按、拖手柄都会触发）。
+ * 电脑端也会触发，但只是幂等地写同一个 ref，没有副作用。
+ */
+function onSelectionChange(): void {
+  readSelection();
 }
 
 /* ---------------- AI 面板 ---------------- */
@@ -205,9 +234,17 @@ const litNames = computed<Record<string, string>>(() => {
 async function ask(kind: Skill): Promise<void> {
   if (!quote.value) return;
 
+  /* 3.3.2 修：resetPanel() 会把 quote 清掉，原先那句自赋值救不回来——
+     结果面板顶部引文空白、存进哲学书的记录也丢了划的是哪句。
+     先把选中文本存下来，清完再放回去。 */
+  const selected = quote.value;
   resetPanel();
-  quote.value = quote.value; // 保留选中文本
+  quote.value = selected;
   panel.value.asked = kind;
+
+  // 手机上三栏一次只显示一栏：提问后自动跳到伴读栏，
+  // 否则答案渲染在一个看不见的栏里，用户点了按钮毫无反应
+  if (narrow.value) mobilePane.value = 'ask';
 
   const d = doc.value;
 
@@ -464,6 +501,7 @@ function removeBook(id: string, ev: Event): void {
 onMounted(() => {
   refreshShelf();
   refreshProgress();
+  document.addEventListener('selectionchange', onSelectionChange);
   if (props.jump) void goTo(props.jump.id, props.jump.para);
 });
 
@@ -477,6 +515,7 @@ watch(
 
 onBeforeUnmount(() => {
   stopTyping();
+  document.removeEventListener('selectionchange', onSelectionChange);
   core.tts.stop();
 });
 </script>
@@ -1104,8 +1143,15 @@ onBeforeUnmount(() => {
   }
 
   .doc {
-    padding: 18px 16px 64px;
+    /* 右侧留出 46px：单段朗读按钮在手机上常显（触摸屏没有 hover），
+       得给它腾个位置，否则会顶出屏幕 */
+    padding: 18px 46px 64px 16px;
     max-width: none;
+  }
+
+  /* 手机上没有悬停：原来 hover 才出现的朗读按钮改为常显，轻点即可朗读本段 */
+  .para-tts {
+    opacity: 1;
   }
 
   .toolbar {
