@@ -1,8 +1,8 @@
 {
   "name": "@wenjin/ui",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "private": true,
-  "description": "问津共享 UI：设计 token、图标精灵、通用组件。",
+  "description": "致知共享 UI：设计 token、图标精灵、通用组件。",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "./src/index.ts",

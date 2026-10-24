@@ -1,6 +1,6 @@
 {
   "appId": "cn.wenjin.app",
-  "appName": "问津",
+  "appName": "致知",
   "webDir": "www",
   "server": {
     "androidScheme": "http",

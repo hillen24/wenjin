@@ -110,13 +110,30 @@ describe('积分：不许算出 NaN', () => {
 
   it('系统会收敛：跑够帧数后总动能在减小', () => {
     const bodies = freshBodies();
-    for (let i = 0; i < 250; i += 1) step(bodies, STAR_EDGES, BASE_VIEW);
+    /**
+     * 窗口均值，不是瞬时采样。
+     *
+     * 3.7.0 星图从 30 节点扩到 52 节点后，这条用例开始偶发失败：
+     * 布局到达平衡态后仍有轻微涨落（节点擦身时斥力给个小kick），
+     * 瞬时值会在两个窗口之间抖上抖下，看着像「没收敛」。
+     * 窗口均值把这种正常涨落平掉，同时照样能抓住真发散——
+     * 真发散的系统，均值只会越跑越大。
+     */
+    const windowKe = (frames: number): number => {
+      let sum = 0;
+      for (let i = 0; i < frames; i += 1) {
+        step(bodies, STAR_EDGES, BASE_VIEW);
+        sum += Object.values(bodies).reduce((s, b) => s + Math.abs(b.vx) + Math.abs(b.vy), 0);
+      }
+      return sum / frames;
+    };
 
-    const early = Object.values(bodies).reduce((s, b) => s + Math.abs(b.vx) + Math.abs(b.vy), 0);
-    for (let i = 0; i < 200; i += 1) step(bodies, STAR_EDGES, BASE_VIEW);
-    const late = Object.values(bodies).reduce((s, b) => s + Math.abs(b.vx) + Math.abs(b.vy), 0);
+    const early = windowKe(150);
+    const mid = windowKe(150);
+    const late = windowKe(150);
 
-    expect(late).toBeLessThanOrEqual(early + 1e-9);
+    expect(mid).toBeLessThan(early);
+    expect(late).toBeLessThan(mid);
   });
 });
 

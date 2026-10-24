@@ -1,8 +1,8 @@
 {
   "name": "@wenjin/desktop",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "private": true,
-  "description": "问津 · 电脑端",
+  "description": "致知 · 电脑端",
   "author": "wenjin",
   "license": "GPL-3.0-or-later",
   "type": "module",
@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "cn.wenjin.desktop",
-    "productName": "问津",
+    "productName": "致知",
     "directories": {
       "output": "dist-app"
     },
@@ -38,8 +38,8 @@
     ],
     "win": {
       "target": "portable",
-      "executableName": "wenjin",
-      "artifactName": "问津-电脑版-3.6.0.exe"
+      "executableName": "zhizhi",
+      "artifactName": "致知-电脑版-3.7.0.exe"
     },
     "icon": "../../assets/icon.png"
   }

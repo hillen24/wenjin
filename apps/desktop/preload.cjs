@@ -1,4 +1,4 @@
-/* 问津 · 电脑端 preload
+/* 致知 · 电脑端 preload
  *
  * 渲染进程是 contextIsolation: true 的，碰不到 Node，也碰不到主进程。
  * 这个桥只开三个口子，全部围绕「局域网同步」一件事：

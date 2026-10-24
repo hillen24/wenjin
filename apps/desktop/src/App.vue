@@ -204,7 +204,7 @@ onBeforeUnmount(() => {
           <svg aria-hidden="true"><use href="#i-mark" /></svg>
         </span>
         <div class="brand-text">
-          <b>问津</b>
+          <b>致知</b>
           <small>思想栖所</small>
         </div>
       </div>

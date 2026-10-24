@@ -29,7 +29,7 @@ describe('书架', () => {
   it('内置原著在前', () => {
     const s = store();
     const shelf = s.shelf();
-    expect(shelf.map((d) => d.id)).toEqual(['epictetus', 'zhuangzi', 'laotzi', 'lunyu', 'xiaoyao', 'daxue']);
+    expect(shelf.map((d) => d.id)).toEqual(['epictetus', 'zhuangzi', 'laotzi', 'lunyu', 'xiaoyao', 'daxue', 'pico', 'petrarch', 'montaigne', 'simaqian', 'wenrtxiang']);
     expect(shelf.every((d) => !d.custom)).toBe(true);
   });
 
@@ -40,10 +40,10 @@ describe('书架', () => {
     if (!r.ok) return;
 
     const shelf = s.shelf();
-    expect(shelf).toHaveLength(7);
-    expect(shelf[6]!.custom).toBe(true);
-    expect(shelf[6]!.title).toBe('我的笔记');
-    expect(shelf[6]!.paras).toEqual(['第一段', '第二段']);
+    expect(shelf).toHaveLength(12);
+    expect(shelf[11]!.custom).toBe(true);
+    expect(shelf[11]!.title).toBe('我的笔记');
+    expect(shelf[11]!.paras).toEqual(['第一段', '第二段']);
   });
 
   it('空文件拒收并说明原因', () => {
@@ -64,7 +64,7 @@ describe('书架', () => {
     const r = s.addUserBook('a.txt', 'x\n\ny');
     if (!r.ok) throw new Error('准备失败');
     s.removeUserBook(r.id);
-    expect(s.shelf().map((d) => d.id)).toEqual(['epictetus', 'zhuangzi', 'laotzi', 'lunyu', 'xiaoyao', 'daxue']);
+    expect(s.shelf().map((d) => d.id)).toEqual(['epictetus', 'zhuangzi', 'laotzi', 'lunyu', 'xiaoyao', 'daxue', 'pico', 'petrarch', 'montaigne', 'simaqian', 'wenrtxiang']);
   });
 });
 

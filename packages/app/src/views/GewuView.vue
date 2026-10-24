@@ -9,7 +9,7 @@
  * 在新结构里根本表达不出来。
  *
  * AI 与预置剧本共用同一条界面流：AI 能用就用，用不了就落回手写剧本，
- * 用户看到的都是「问津 AI · 格物教练」，但提示条会说实话。
+ * 用户看到的都是「致知 AI · 格物教练」，但提示条会说实话。
  */
 
 import { computed, nextTick, onMounted, ref } from 'vue';
@@ -290,7 +290,7 @@ function again(): void {
           <div ref="chatBox" class="chat box">
             <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.who">
               <div v-if="m.who === 'ai'" class="who">
-                问津 AI · 格物教练
+                致知 AI · 格物教练
                 <span v-if="m.canned" class="canned">预置</span>
               </div>
               {{ m.text }}
@@ -308,7 +308,7 @@ function again(): void {
             </div>
 
             <div v-if="typing" class="msg ai typing">
-              <div class="who">问津 AI · 格物教练</div>
+              <div class="who">致知 AI · 格物教练</div>
               思索中…
             </div>
           </div>

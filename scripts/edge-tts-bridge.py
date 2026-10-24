@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-问津 · Edge-TTS 桥接服务（edge-tts-bridge）
+致知 · Edge-TTS 桥接服务（edge-tts-bridge）
 把微软 Edge 神经网络语音（Edge-TTS）包成一个 OpenAI 兼容的 /v1/audio/speech 接口，
-问津电脑端 / 手机端在「设置 → 阅读与朗读 → Edge-TTS」里填这个地址即可用上自然人声。
+致知电脑端 / 手机端在「设置 → 阅读与朗读 → Edge-TTS」里填这个地址即可用上自然人声。
 
 用法：
     pip install edge-tts fastapi uvicorn
@@ -26,7 +26,7 @@ except ImportError:
     print("缺少依赖，请先执行：  pip install edge-tts fastapi uvicorn")
     sys.exit(1)
 
-app = FastAPI(title="问津 Edge-TTS Bridge")
+app = FastAPI(title="致知 Edge-TTS Bridge")
 
 # 手机 WebView 的源是 http://localhost，跨源请求必须带 CORS 头，
 # 且要应答 OPTIONS 预检 —— 否则手机上的朗读请求根本到不了这里。
@@ -39,7 +39,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Edge-TTS 常用中文音色（与问津设置页下拉一致）
+# Edge-TTS 常用中文音色（与致知设置页下拉一致）
 VOICES = [
     "zh-CN-XiaoxiaoNeural", "zh-CN-YunxiNeural", "zh-CN-YunjianNeural",
     "zh-CN-XiaoyiNeural", "zh-CN-YunyangNeural", "zh-CN-XiaochenNeural",
@@ -77,7 +77,7 @@ async def speech(request: Request):
     except (TypeError, ValueError):
         speed = 1.0
     speed = max(0.5, min(2.0, speed))
-    # 问津传 0.6~1.8，Edge-TTS 要 "+20%" 这种
+    # 致知传 0.6~1.8，Edge-TTS 要 "+20%" 这种
     rate = f"{int(round((speed - 1.0) * 100)):+d}%"
 
     fd, path = tempfile.mkstemp(suffix=".mp3")
@@ -115,7 +115,7 @@ def lan_ip():
 if __name__ == "__main__":
     ip = lan_ip()
     print("=" * 56)
-    print("  问津 · Edge-TTS 桥接已启动")
+    print("  致知 · Edge-TTS 桥接已启动")
     print(f"  本机地址   : http://127.0.0.1:8787")
     print(f"  局域网地址 : http://{ip}:8787/v1   ← 填到手机端 / 电脑端设置页")
     print("  音色白名单 : " + ", ".join(VOICES[:4]) + " …")

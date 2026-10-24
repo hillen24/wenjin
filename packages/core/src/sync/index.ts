@@ -134,7 +134,7 @@ export function describeSnapshot(snap: SyncSnapshot): SnapshotStats {
 export function parseSnapshot(raw: unknown): ParseResult {
   if (!raw || typeof raw !== 'object') return { ok: false, reason: '不是合法对象' };
   const o = raw as Partial<SyncSnapshot>;
-  if (o.app !== SYNC_APP) return { ok: false, reason: '不是问津的快照' };
+  if (o.app !== SYNC_APP) return { ok: false, reason: '不是致知的快照' };
   if (o.v !== SYNC_VERSION) return { ok: false, reason: `快照版本不认识（${String(o.v)}）` };
   if (!o.data || typeof o.data !== 'object' || Array.isArray(o.data)) {
     return { ok: false, reason: '缺少 data' };

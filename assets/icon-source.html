@@ -1,58 +1,103 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <title>问津图标源</title>
-    <style>
-      /* 512×512 应用图标底稿。用 Edge 无头截图为 PNG，再交给 electron-builder 转 ico。
-       *
-       * 图形 = 「日中之火」：
-       * 圆是太阳（查拉图斯特拉的赠予者），被挖空的三尖火焰是权力意志——
-       * 太阳把自己烧掉，光还是往外给。火焰用负形留在圆里，不写实、不加渐变，
-       * 只有「圆 + 火」两个几何元素。
-       */
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        width: 512px;
-        height: 512px;
-        overflow: hidden;
-      }
+<head>
+<meta charset="utf-8">
+<title>致知标记 · 几何徽章（渲染源）</title>
+<style>
+  html,body{margin:0;background:#fff}
+  .row{display:flex;gap:40px;padding:28px;align-items:flex-end}
+  figure{margin:0;text-align:center}
+  figcaption{font:12px/1.6 system-ui;color:#888;margin-top:8px}
+</style>
+</head>
+<body>
 
-      .wrap {
-        /* fixed + inset:0 而不是写死 512px：写死时底部圆角会刚好落在画布外被裁掉 */
-        position: fixed;
-        inset: 0;
-        display: grid;
-        place-items: center;
-        background: radial-gradient(120% 120% at 30% 18%, #ff8a5c 0%, #e8623a 46%, #c74a28 100%);
-        border-radius: 112px;
-      }
+<!-- 徽章定义：只写一次，多处 use -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="badge">
+      <!--
+        致知标记 ·「日出于书」
 
-      svg {
-        width: 392px;
-        height: 392px;
-        display: block;
-        /* 不加投影：这是个符号，不是立体物件。投影会让橙底发浑、缩小后更脏 */
-      }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <g transform="rotate(-5 12 12)">
-          <path
-            fill="#fff"
-            fill-rule="evenodd"
-            d="M12 0.7A11.3 11.3 0 0 1 12 23.3A11.3 11.3 0 0 1 12 0.7Z
-               M6.0 18.2C6.6 12.0 7.1 8.8 7.8 6.6C9.4 10.2 10.3 12.5 10.7 14.1
-               C11.2 9.5 11.7 5.2 12.4 2.0C13.6 5.6 14.1 9.6 14.5 13.3
-               C15.3 9.7 16.1 7.0 16.6 4.9C17.6 8.3 18.3 12.6 18.5 18.2
-               C14.7 20.0 9.7 20.0 6.0 18.2Z"
-          />
-        </g>
-      </svg>
-    </div>
-  </body>
+        几何规格（全扁平单色，只用正圆/直线/圆弧/圆角）：
+          中心实心正圆 = 太阳核心；
+          外圈六条等距粗短放射线，末端各一个小实心圆点；
+          左右两条放射线末端各分叉一条短斜线，连接更小的圆点（两级扩散节点）；
+          下方开口向上的宽弧形书页托座：两端上收尖、底边平直、外角圆角；
+          书页上缘与中心圆之间留均匀月牙负空间。
+        关键：书页上缘是一段与太阳同心的圆弧（R=172，圆心即太阳中心），
+        月牙负空间因此径向等宽、绝对均匀。
+      -->
+
+      <!-- 书页托座：上缘圆弧 + 向下外扩的侧壁 + 平直底边 + 圆角外角 -->
+      <path fill="#000" d="
+        M 110.1 316.8
+        C 98 352, 88 392, 86 428
+        Q 86 446, 104 446
+        L 408 446
+        Q 426 446, 426 428
+        C 424 392, 414 352, 401.9 316.8
+        A 172 172 0 0 1 110.1 316.8 Z"/>
+
+      <!-- 太阳核心 -->
+      <circle cx="256" cy="226" r="54" fill="#000"/>
+
+      <!-- 六条等距放射线：0/60/120/180/240/300 度，粗短圆头 -->
+      <g stroke="#000" stroke-width="19" stroke-linecap="round">
+        <line x1="332" y1="226" x2="390" y2="226"/>
+        <line x1="294" y1="291.8" x2="323" y2="342.2"/>
+        <line x1="218" y1="291.8" x2="189" y2="342.2"/>
+        <line x1="180" y1="226" x2="122" y2="226"/>
+        <line x1="218" y1="160.2" x2="189" y2="109.8"/>
+        <line x1="294" y1="160.2" x2="323" y2="109.8"/>
+      </g>
+
+      <!-- 六条放射线末端的小实心圆点（距中心 150，r=11） -->
+      <g fill="#000">
+        <circle cx="406" cy="226" r="11"/>
+        <circle cx="331" cy="355.9" r="11"/>
+        <circle cx="181" cy="355.9" r="11"/>
+        <circle cx="106" cy="226" r="11"/>
+        <circle cx="181" cy="96.1" r="11"/>
+        <circle cx="331" cy="96.1" r="11"/>
+      </g>
+
+      <!-- 左右两条放射线末端各分叉一条短斜线（向上外 25°），连更小的圆点 -->
+      <g stroke="#000" stroke-width="14" stroke-linecap="round">
+        <line x1="106" y1="226" x2="69.7" y2="209.1"/>
+        <line x1="406" y1="226" x2="442.3" y2="209.1"/>
+      </g>
+      <circle cx="69.7" cy="209.1" r="8.5" fill="#000"/>
+      <circle cx="442.3" cy="209.1" r="8.5" fill="#000"/>
+    </g>
+  </defs>
+</svg>
+
+<!-- 512 主视图（白底） -->
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#fff"/>
+  <use href="#badge"/>
+</svg>
+
+<!-- 小尺寸可辨性预览 -->
+<div class="row">
+  <figure>
+    <svg width="128" height="128" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" fill="#fff"/><use href="#badge"/></svg>
+    <figcaption>128 px</figcaption>
+  </figure>
+  <figure>
+    <svg width="64" height="64" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" fill="#fff"/><use href="#badge"/></svg>
+    <figcaption>64 px</figcaption>
+  </figure>
+  <figure>
+    <svg width="32" height="32" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" fill="#fff"/><use href="#badge"/></svg>
+    <figcaption>32 px</figcaption>
+  </figure>
+  <figure>
+    <svg width="20" height="20" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" fill="#fff"/><use href="#badge"/></svg>
+    <figcaption>20 px</figcaption>
+  </figure>
+</div>
+
+</body>
 </html>

@@ -1,4 +1,4 @@
-/* 问津 · 电脑端 Electron 主进程（3.3）
+/* 致知 · 电脑端 Electron 主进程（3.7）
  *
  * 除了开窗口，还担着一件事：**本机局域网同步服务**。
  * 手机端是 WebView，起不了 HTTP 服务，所以由电脑当服务端、手机来连。
@@ -160,7 +160,7 @@ function startSyncServer() {
            这挡不住同局域网里的恶意请求，但能防止一段乱数据把本机存储写坏 ——
            写坏了用户是真的会丢记录。 */
         if (!snap || snap.app !== SYNC_APP || typeof snap.data !== 'object' || Array.isArray(snap.data)) {
-          sendJSON(res, 400, { ok: false, reason: '不是问津的快照' });
+          sendJSON(res, 400, { ok: false, reason: '不是致知的快照' });
           return;
         }
         for (const w of BrowserWindow.getAllWindows()) {
@@ -175,7 +175,7 @@ function startSyncServer() {
   });
 
   /**
-   * 端口被占用（常见原因：同时开了两个问津）时往后顺延。
+   * 端口被占用（常见原因：同时开了两个致知）时往后顺延。
    * 早先这里是静默失败，设置页只会显示「服务没起来」，
    * 用户看到地址却连不上，比直接给个新端口更让人困惑。
    */
@@ -237,7 +237,7 @@ function createWindow() {
     height: 860,
     minWidth: 1080,
     minHeight: 700,
-    title: '问津 · 思想栖所',
+    title: '致知 · 思想栖所',
     backgroundColor: '#0B0E14',
     autoHideMenuBar: true,
     webPreferences: {

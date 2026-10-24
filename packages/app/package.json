@@ -1,6 +1,6 @@
 {
   "name": "@wenjin/app",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
@@ -8,7 +8,7 @@
     ".": "./src/index.ts",
     "./*": "./src/*"
   },
-  "description": "问津共享应用层：七个视图与跨视图导航，电脑端与手机端共用",
+  "description": "致知共享应用层：七个视图与跨视图导航，电脑端与手机端共用",
   "license": "GPL-3.0-or-later",
   "dependencies": {
     "@wenjin/core": "*",

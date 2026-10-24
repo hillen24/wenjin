@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 前景是白色拱门，背景用品牌橙，合起来还原完整的问津 logo -->
-    <color name="ic_launcher_background">#E8623A</color>
+    <!--
+      致知 3.7.0：标记换成白底黑徽章（日出于书），背景随之改白。
+      这里同时被 styles.xml 的 windowSplashScreenBackground 引用，
+      改这一处，Android 12+ 系统闪屏底色与自适应图标底色一起跟着变。
+    -->
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

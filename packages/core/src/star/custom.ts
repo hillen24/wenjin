@@ -270,7 +270,7 @@ export function buildAiPrompt(existingNodes: ReadonlyArray<Pick<StarNode, 'id' |
   const shown = all.slice(0, PROMPT_NODE_LIMIT);
   const truncated = all.length > shown.length ? `（清单较长，仅列出前 ${shown.length} 个）` : '';
   return [
-    '你是「问津」哲学星图的结构化编辑器。用户会用自然语言描述想加入的思想概念/人物/流派/方法，',
+    '你是「致知」哲学星图的结构化编辑器。用户会用自然语言描述想加入的思想概念/人物/流派/方法，',
     '你的唯一任务是把描述规范化成星图片段。必须只输出一个 JSON 对象，不要输出任何其他文字、不要用 markdown 代码块。',
     '',
     'JSON 格式：',

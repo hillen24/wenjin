@@ -190,7 +190,7 @@ export function bookToMarkdown(draft: BookDraft, date: string): string {
   const out: string[] = [];
   out.push('# 我的哲学书', '');
   out.push(
-    `> 由问津 自动梳理 · ${date} · 收录 ${draft.counts.cards} 条格物 / ` +
+    `> 由致知 自动梳理 · ${date} · 收录 ${draft.counts.cards} 条格物 / ` +
       `${draft.counts.debates} 场论道 / ${draft.counts.readings} 次伴读问答`,
     '',
   );

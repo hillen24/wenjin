@@ -1,11 +1,11 @@
 """从新标记生成 Android 全套启动图（splash）。
 
-以前这套图是 Capacitor 出厂的默认蓝闪电，开屏第一眼就是「没做完」。
-现在统一成：品牌橙底 + 居中的白色火标（i-mark 的同一团火）。
+3.7.0「致知」起换成「日出于书」几何徽章：白底 + 居中黑徽章，
+与 assets/icon.png、assets/icon-source.html 是同一套几何。
 
 为什么要先渲染一张 1024 的 PNG 再拼：
-PIL 画不了 SVG 路径，所以先用 Edge 无头把火焰渲成透明底 PNG，
-再按各密度缩放贴到橙底上 —— 这样曲线边缘不会因为反复缩放而糊。
+PIL 画不了 SVG 路径，所以先用 Edge 无头把徽章渲成透明底 PNG，
+再按各密度缩放贴到白底上 —— 这样曲线边缘不会因为反复缩放而糊。
 
 用法（在仓库根目录）：
     python scripts/make-splash.py apps/mobile/android
@@ -18,17 +18,36 @@ from pathlib import Path
 
 from PIL import Image
 
-# 与 --accent 同色系；启动图和图标必须是一个橙，否则开屏会「闪一下」
-BRAND = (232, 98, 58)
-DEEP = (199, 74, 40)
+# 启动图底色：纯白。徽章是纯黑单色，白底是规格的一部分，不加渐变
+BG = (255, 255, 255)
 
-# 火焰轮廓（与 WenjinSprite 的 i-mark 完全一致，24 网格，未旋转）
-FLAME_D = (
-    "M6.0 18.2C6.6 12.0 7.1 8.8 7.8 6.6C9.4 10.2 10.3 12.5 10.7 14.1"
-    "C11.2 9.5 11.7 5.2 12.4 2.0C13.6 5.6 14.1 9.6 14.5 13.3"
-    "C15.3 9.7 16.1 7.0 16.6 4.9C17.6 8.3 18.3 12.6 18.5 18.2"
-    "C14.7 20.0 9.7 20.0 6.0 18.2Z"
+# 徽章几何（与 assets/icon-source.html 的 #badge 完全一致，512 网格）
+BOOK_D = (
+    "M 110.1 316.8 C 98 352, 88 392, 86 428 Q 86 446, 104 446 "
+    "L 408 446 Q 426 446, 426 428 C 424 392, 414 352, 401.9 316.8 "
+    "A 172 172 0 0 1 110.1 316.8 Z"
 )
+SUN = (256, 226, 54)
+RAYS = [
+    (332, 226, 390, 226),
+    (294, 291.8, 323, 342.2),
+    (218, 291.8, 189, 342.2),
+    (180, 226, 122, 226),
+    (218, 160.2, 189, 109.8),
+    (294, 160.2, 323, 109.8),
+]
+RAY_SW = 19
+DOTS = [
+    (406, 226, 11),
+    (331, 355.9, 11),
+    (181, 355.9, 11),
+    (106, 226, 11),
+    (181, 96.1, 11),
+    (331, 96.1, 11),
+]
+FORKS = [(106, 226, 69.7, 209.1), (406, 226, 442.3, 209.1)]
+FORK_SW = 14
+FORK_DOTS = [(69.7, 209.1, 8.5), (442.3, 209.1, 8.5)]
 
 # 各密度启动图尺寸，与 Capacitor 出厂布局一致
 SIZES = {
@@ -58,21 +77,43 @@ def find_edge() -> str:
     raise SystemExit("找不到 Edge，无法渲染矢量标记")
 
 
-def render_flame(workdir: Path) -> Image.Image:
-    """渲一张 1024 透明底的火标 PNG。"""
-    html = workdir / "flame.html"
+def badge_svg() -> str:
+    """拼出与 icon-source.html 一致的徽章 SVG（透明底、纯黑）。"""
+    rays = "".join(
+        f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}"/>'
+        for x1, y1, x2, y2 in RAYS
+    )
+    dots = "".join(f'<circle cx="{x}" cy="{y}" r="{r}"/>' for x, y, r in DOTS)
+    forks = "".join(
+        f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}"/>'
+        for x1, y1, x2, y2 in FORKS
+    )
+    fork_dots = "".join(
+        f'<circle cx="{x}" cy="{y}" r="{r}"/>' for x, y, r in FORK_DOTS
+    )
+    return f"""<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <path fill="#000" d="{BOOK_D}"/>
+  <circle cx="{SUN[0]}" cy="{SUN[1]}" r="{SUN[2]}" fill="#000"/>
+  <g stroke="#000" stroke-width="{RAY_SW}" stroke-linecap="round">{rays}</g>
+  <g fill="#000">{dots}</g>
+  <g stroke="#000" stroke-width="{FORK_SW}" stroke-linecap="round">{forks}</g>
+  <g fill="#000">{fork_dots}</g>
+</svg>"""
+
+
+def render_badge(workdir: Path) -> Image.Image:
+    """渲一张 1024 透明底的黑徽章 PNG。"""
+    html = workdir / "badge.html"
     html.write_text(
         """<!doctype html><html><head><meta charset="utf-8"><style>
 html,body{margin:0;width:1024px;height:1024px;background:transparent;overflow:hidden}
 svg{display:block;width:1024px;height:1024px}
-</style></head><body>
-<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-  <g transform="rotate(-5 12 12)"><path fill="#fff" d="%s"/></g>
-</svg></body></html>"""
-        % FLAME_D,
+</style></head><body>"""
+        + badge_svg()
+        + "</body></html>",
         encoding="utf-8",
     )
-    png = workdir / "flame.png"
+    png = workdir / "badge.png"
     subprocess.run(
         [
             find_edge(),
@@ -89,20 +130,15 @@ svg{display:block;width:1024px;height:1024px}
         capture_output=True,
     )
     if not png.exists():
-        raise SystemExit("火标渲染失败")
+        raise SystemExit("徽章渲染失败")
     return Image.open(png).convert("RGBA")
 
 
-def make_splash(flame: Image.Image, w: int, h: int) -> Image.Image:
-    """橙底 + 居中火标。火标取短边的 32%——够醒目，又不至于像广告屏。"""
-    bg = Image.new("RGBA", (w, h), BRAND + (255,))
-    # 从左上往右下的极轻渐变，避免大面积纯色显得廉价
-    top = Image.new("RGBA", (w, h), (255, 138, 92, 255))
-    mask = Image.linear_gradient("L").resize((w, h))
-    bg = Image.composite(top, bg, mask.point(lambda v: int(v * 0.35)))
-
-    side = int(min(w, h) * 0.32)
-    glyph = flame.resize((side, side), Image.LANCZOS)
+def make_splash(badge: Image.Image, w: int, h: int) -> Image.Image:
+    """白底 + 居中徽章。徽章取短边的 34%——开屏上够稳，又不占满屏。"""
+    bg = Image.new("RGBA", (w, h), BG + (255,))
+    side = int(min(w, h) * 0.34)
+    glyph = badge.resize((side, side), Image.LANCZOS)
     bg.alpha_composite(glyph, ((w - side) // 2, (h - side) // 2))
     return bg.convert("RGB")
 
@@ -117,12 +153,12 @@ def main() -> int:
         return 1
 
     with tempfile.TemporaryDirectory() as td:
-        flame = render_flame(Path(td))
+        badge = render_badge(Path(td))
         n = 0
         for rel, (w, h) in SIZES.items():
             out = res / rel
             out.parent.mkdir(parents=True, exist_ok=True)
-            make_splash(flame, w, h).save(out, optimize=True)
+            make_splash(badge, w, h).save(out, optimize=True)
             n += 1
     print(f"已写入 {n} 张启动图")
     return 0

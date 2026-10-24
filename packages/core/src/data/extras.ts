@@ -30,6 +30,11 @@ export const BUILTIN_DOCS: readonly string[] = [
   'lunyu',
   'xiaoyao',
   'daxue',
+  'pico',
+  'petrarch',
+  'montaigne',
+  'simaqian',
+  'wenrtxiang',
 ];
 
 /**
@@ -45,6 +50,8 @@ export const PHIL_GRADIENTS: Record<string, { from: string; to: string }> = {
   wangym: { from: '#8B7CF6', to: '#4C3F91' },
   laotzi: { from: '#6BAF92', to: '#2E6B52' },
   confucius: { from: '#D9A06B', to: '#8C5A2B' },
+  montaigne: { from: '#D8B36A', to: '#8C6520' },
+  maslow: { from: '#7FC8A9', to: '#2E7D5B' },
 };
 
 /** 已点亮的概念。运行时状态在 ProgressStore 里，这里只给初始值。 */
@@ -58,6 +65,11 @@ export const INITIAL_LIT_NODES: readonly string[] = [
   'wangym',
   'laotzi',
   'confucius',
+  'humanism',
+  'dignity',
+  'sartre',
+  'camus',
+  'maslow',
 ];
 
 /** id → 条目 的索引，模块加载时建一次。方法论被引用得太频繁，每次 find 太浪费。 */

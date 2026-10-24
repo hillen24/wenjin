@@ -249,9 +249,29 @@ export function step(
       n.y += n.vy;
     }
 
-    // 钳制在视口内，避免节点飘到看不见的地方再也抓不回来
-    n.x = Math.max(minX, Math.min(maxX, n.x));
-    n.y = Math.max(minY, Math.min(maxY, n.y));
+    /**
+     * 钳制在视口内，避免节点飘到看不见的地方再也抓不回来。
+     *
+     * ★ 3.7.0 修：撞墙必须同时把对应轴的速度归零。
+     * 旧代码只钳位置不碰速度 —— 节点贴边后，斥力/弹簧每帧继续把它往外推，
+     * 位置被钳住、速度却照攒，整个系统在边界上被持续注入能量，
+     * 表现为星图永远在轻微抖动、收不到稳定布局。
+     * 30 个节点时看不出来（贴边的是少数），52 个节点时直接抖成限环。
+     */
+    if (n.x < minX) {
+      n.x = minX;
+      n.vx = 0;
+    } else if (n.x > maxX) {
+      n.x = maxX;
+      n.vx = 0;
+    }
+    if (n.y < minY) {
+      n.y = minY;
+      n.vy = 0;
+    } else if (n.y > maxY) {
+      n.y = maxY;
+      n.vy = 0;
+    }
   }
 }
 

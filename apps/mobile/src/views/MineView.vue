@@ -111,8 +111,8 @@ const ENTRIES: readonly Entry[] = [
     </nav>
 
     <footer class="about">
-      <span>问津 · 思想栖所</span>
-      <span class="ver">v3.3</span>
+      <span>致知 · 思想栖所</span>
+      <span class="ver">v3.7</span>
       <span class="note">数据只存在这台设备上，断网可用</span>
     </footer>
   </div>
