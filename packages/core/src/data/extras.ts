@@ -23,7 +23,14 @@ export const CARD_LABELS: Record<string, string> = {
 };
 
 /** 内置原著。用户自己载入的书排在其后。 */
-export const BUILTIN_DOCS: readonly string[] = ['epictetus', 'zhuangzi'];
+export const BUILTIN_DOCS: readonly string[] = [
+  'epictetus',
+  'zhuangzi',
+  'laotzi',
+  'lunyu',
+  'xiaoyao',
+  'daxue',
+];
 
 /**
  * 哲人头像底色。两色渐变，落在 .phil-btn 的 .av 上。
@@ -36,6 +43,8 @@ export const PHIL_GRADIENTS: Record<string, { from: string; to: string }> = {
   nietzsche: { from: '#FF6A4D', to: '#B02E2A' },
   zhuangzi: { from: '#E8B84B', to: '#9A6B1F' },
   wangym: { from: '#8B7CF6', to: '#4C3F91' },
+  laotzi: { from: '#6BAF92', to: '#2E6B52' },
+  confucius: { from: '#D9A06B', to: '#8C5A2B' },
 };
 
 /** 已点亮的概念。运行时状态在 ProgressStore 里，这里只给初始值。 */
@@ -47,6 +56,8 @@ export const INITIAL_LIT_NODES: readonly string[] = [
   'hume',
   'zhuangzi',
   'wangym',
+  'laotzi',
+  'confucius',
 ];
 
 /** id → 条目 的索引，模块加载时建一次。方法论被引用得太频繁，每次 find 太浪费。 */

@@ -34,7 +34,10 @@ export const STAR_NODES: readonly StarNode[] = [
  {id:'zhixing',name:'知行合一',kind:'method',school:'明代中国',brief:'方法论 A11：知而不行只是未知。真知必然带出行动，行动也是知的完成。',src:'王阳明《传习录》',doc:{d:'zhuangzi',p:2},entries:['A11']},
  {id:'wangym',name:'王阳明',kind:'figure',school:'明代中国',brief:'心学集大成者。龙场一悟：心即理，知行本是一件事。',src:'《传习录》',doc:null},
  {id:'doubt',name:'普遍怀疑',kind:'method',school:'现代欧陆',brief:'方法论 B3：系统性怀疑一切可疑的，直到找到不可疑的地基再重建。',src:'笛卡尔《第一哲学沉思集》',doc:null,entries:['B3']},
- {id:'descartes',name:'笛卡尔',kind:'figure',school:'现代欧陆',brief:'"我思故我在"——用怀疑烧掉一切，最后剩下一块烧不掉的地基。',src:'《第一哲学沉思集》',doc:null}
+ {id:'descartes',name:'笛卡尔',kind:'figure',school:'现代欧陆',brief:'"我思故我在"——用怀疑烧掉一切，最后剩下一块烧不掉的地基。',src:'《第一哲学沉思集》',doc:null},
+ {id:'laotzi',name:'老子',kind:'figure',school:'先秦中国',brief:'道家始祖。五千言《道德经》以水喻道：不争，故天下莫能与之争。',src:'《道德经》',doc:{d:'laotzi',p:0}},
+ {id:'confucius',name:'孔子',kind:'figure',school:'先秦中国',brief:'万世师表。把「做个好人」拆成日日可练的功夫：三省、好学、和而不同。',src:'《论语》',doc:{d:'lunyu',p:0}},
+ {id:'xiaoyao',name:'逍遥游',kind:'method',school:'先秦中国',brief:'无待而游：鲲鹏之大不靠风，至人之游不靠外物。格局决定你飞多远。',src:'《庄子·逍遥游》',doc:{d:'xiaoyao',p:2}}
 ];
 
 export const STAR_EDGES: readonly StarEdge[] = [
@@ -49,6 +52,10 @@ export const STAR_EDGES: readonly StarEdge[] = [
  ['descartes','doubt','proposes',''],
  ['occamW','occam','proposes',''],['socrates','midwife','proposes',''],
  ['zhuangzi','paoding','proposes',''],['wangym','zhixing','proposes',''],
- ['paoding','zhixing','refines','顺应结构与知行本体相通']
+ ['paoding','zhixing','refines','顺应结构与知行本体相通'],
+ ['zhuangzi','laotzi','inherits','庄子承老子，以寓言弘其道'],
+ ['zhuangzi','xiaoyao','proposes','逍遥游为庄子自铸的方法'],
+ ['wangym','confucius','inherits','心学承儒门：致良知即致知'],
+ ['confucius','laotzi','opposes','儒道分途：日日精进与无为而治']
 ];
 
