@@ -7,8 +7,13 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
 
+        <!-- usesCleartextTraffic：局域网同步（http://192.168.x.x:47800）和
+             Edge-TTS 桥（http://IP:8787）都是明文 HTTP。
+             Android 9 起默认禁止明文流量，不写这一行会被系统直接拦掉，
+             手机上表现为「连不上电脑」「TTS 没声音」。 -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"

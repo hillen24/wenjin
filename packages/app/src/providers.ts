@@ -6,12 +6,12 @@
  */
 
 import { inject, provide, type InjectionKey } from 'vue';
-import { createCore, type WenjinCore } from '@wenjin/core';
+import { createCore, type CoreOptions, type WenjinCore } from '@wenjin/core';
 
 export const CORE_KEY: InjectionKey<WenjinCore> = Symbol('wenjin:core');
 
-export function provideCore(): WenjinCore {
-  const core = createCore();
+export function provideCore(opts: CoreOptions = {}): WenjinCore {
+  const core = createCore(opts);
   provide(CORE_KEY, core);
   return core;
 }

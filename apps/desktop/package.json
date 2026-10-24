@@ -1,6 +1,6 @@
 {
   "name": "@wenjin/desktop",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "private": true,
   "description": "问津 · 电脑端",
   "author": "wenjin",
@@ -39,7 +39,7 @@
     "win": {
       "target": "portable",
       "executableName": "wenjin",
-      "artifactName": "问津-电脑版-3.3.0.exe"
+      "artifactName": "问津-电脑版-3.3.1.exe"
     },
     "icon": "../../assets/icon.png"
   }

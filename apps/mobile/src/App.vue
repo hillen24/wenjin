@@ -26,8 +26,14 @@ import {
   type TabKey,
 } from '@wenjin/app';
 import MineView from './views/MineView.vue';
+import { capFetch, isNativeHttp } from './capFetch';
 
-const core = provideCore();
+/**
+ * AI 请求在真机上必须走原生通道：WebView 拦第三方 API 的跨源响应，
+ * DeepSeek / SiliconFlow 都不带 CORS 头，标准 fetch 会全军覆没。
+ * 浏览器 dev 模式没有原生层，自动落回标准 fetch。
+ */
+const core = provideCore(isNativeHttp() ? { fetchImpl: capFetch } : {});
 
 /** 手机端多一个 'me'：它不是 TabKey，是聚合页 */
 type MobileTab = TabKey | 'me';

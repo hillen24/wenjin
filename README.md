@@ -1,4 +1,4 @@
-# 问津 · 思想栖所（3.3 工程版）
+# 问津 · 思想栖所（3.3.1 工程版）
 
 哲学学习应用。电脑端 + 手机端，本地优先，断网可用。
 
@@ -183,6 +183,17 @@ npx vue-tsc -p apps/desktop/tsconfig.json
 | 圆点手指点不准 | 概念节点直径十来像素，命中区就等于视觉区 | 每个节点垫一个 +11 单位的透明命中圈（`fill: none` 必须显式 `pointer-events: all` 才有命中区） |
 | 设了 `ELECTRON_RUN_AS_NODE` 的机器上双击 exe 没反应 | 自愈代码用 `process.execPath` 重启，而便携版那个路径在临时解压目录里；父进程一退出，便携启动器就把临时目录删了，刚拉起来的子进程连文件都没了 | 便携版改从 `PORTABLE_EXECUTABLE_FILE`（用户双击的那个原始 exe）重来一遍，并去掉内部 asar 入口参数 |
 | 顶部提示条第二行仍被切半截 | 全局 `box-sizing: border-box`，`max-height` 把上下 padding（9+8=17px）也算进去了 | `max-height: calc(3.2em + 17px)` |
+
+### 3.3.1 手机端功能修复
+
+真机上发现 3.3.0 的 apk 有一大片功能用不了，两个根因都在环境层，不在业务代码：
+
+| 现象 | 根因 | 修法 |
+|---|---|---|
+| 伴读问答、论道、AI 梳理、拉模型列表全废 | 手机 WebView 强制同源策略，DeepSeek / SiliconFlow 不带跨源头；电脑端没事是因为 Electron 里 `webSecurity: false` | AI 请求在真机上改走 `CapacitorHttp` 原生通道（`apps/mobile/src/capFetch.ts`），浏览器 dev 模式自动落回标准 fetch |
+| 局域网同步连不上电脑、TTS 桥没声音 | Android 9+ 默认禁止明文 HTTP，同步（`:47800`）和 TTS 桥（`:8787`）都是 `http://` | 清单声明 `android:usesCleartextTraffic="true"`；TTS 桥补 CORS 中间件 |
+
+另外：同步服务端口被占时自动顺延（最多 +5），设置页显示的是真实监听端口。
 
 ### 3.3 两端数据终于通了
 

@@ -28,6 +28,17 @@ except ImportError:
 
 app = FastAPI(title="问津 Edge-TTS Bridge")
 
+# 手机 WebView 的源是 http://localhost，跨源请求必须带 CORS 头，
+# 且要应答 OPTIONS 预检 —— 否则手机上的朗读请求根本到不了这里。
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Edge-TTS 常用中文音色（与问津设置页下拉一致）
 VOICES = [
     "zh-CN-XiaoxiaoNeural", "zh-CN-YunxiNeural", "zh-CN-YunjianNeural",
