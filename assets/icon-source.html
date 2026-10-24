@@ -5,7 +5,12 @@
     <title>问津图标源</title>
     <style>
       /* 512×512 应用图标底稿。用 Edge 无头截图为 PNG，再交给 electron-builder 转 ico。
-         图形与侧栏 logo 完全一致：开口拱门 + 渡口横线 + 拱里一点光。 */
+       *
+       * 图形 = 「日中之火」：
+       * 圆是太阳（查拉图斯特拉的赠予者），被挖空的三尖火焰是权力意志——
+       * 太阳把自己烧掉，光还是往外给。火焰用负形留在圆里，不写实、不加渐变，
+       * 只有「圆 + 火」两个几何元素。
+       */
       html,
       body {
         margin: 0;
@@ -16,41 +21,37 @@
       }
 
       .wrap {
-        /* 用 fixed + inset:0 而不是写死 512px：写死时底部圆角会刚好落在画布边界之外被裁掉 */
+        /* fixed + inset:0 而不是写死 512px：写死时底部圆角会刚好落在画布外被裁掉 */
         position: fixed;
         inset: 0;
         display: grid;
         place-items: center;
-        /* 与暗色主题的 --accent 同色系，圆角 112px 接近 Windows 11 图标规范 */
         background: radial-gradient(120% 120% at 30% 18%, #ff8a5c 0%, #e8623a 46%, #c74a28 100%);
         border-radius: 112px;
       }
 
       svg {
-        width: 336px;
-        height: 336px;
-        fill: none;
-        stroke: #fff;
-        /* viewBox 是 24 单位、渲染 336px，缩放 14 倍。
-           所以这里的数值是「24 单位下的线宽」——2 渲染出来约 28px。 */
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-      }
-
-      /* 拱里那一点光要实心 */
-      .spark {
-        fill: #fff;
-        stroke: none;
+        width: 392px;
+        height: 392px;
+        display: block;
+        /* 不加投影：这是个符号，不是立体物件。投影会让橙底发浑、缩小后更脏 */
       }
     </style>
   </head>
   <body>
     <div class="wrap">
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M6.4 20.2V11a5.6 5.6 0 0 1 11.2 0v9.2" />
-        <path d="M4.2 20.4h15.6" />
-        <circle class="spark" cx="12" cy="12.4" r="1.7" />
+        <g transform="rotate(-5 12 12)">
+          <path
+            fill="#fff"
+            fill-rule="evenodd"
+            d="M12 0.7A11.3 11.3 0 0 1 12 23.3A11.3 11.3 0 0 1 12 0.7Z
+               M6.0 18.2C6.6 12.0 7.1 8.8 7.8 6.6C9.4 10.2 10.3 12.5 10.7 14.1
+               C11.2 9.5 11.7 5.2 12.4 2.0C13.6 5.6 14.1 9.6 14.5 13.3
+               C15.3 9.7 16.1 7.0 16.6 4.9C17.6 8.3 18.3 12.6 18.5 18.2
+               C14.7 20.0 9.7 20.0 6.0 18.2Z"
+          />
+        </g>
       </svg>
     </div>
   </body>

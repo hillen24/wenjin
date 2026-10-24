@@ -198,7 +198,7 @@ onBeforeUnmount(() => {
         <Icon name="i-chevron" :size="18" />
       </button>
       <span v-else class="seal">
-        <svg aria-hidden="true"><use href="#i-logo" /></svg>
+        <svg aria-hidden="true"><use href="#i-mark" /></svg>
       </span>
 
       <b class="title">{{ pageTitle }}</b>
@@ -224,14 +224,16 @@ onBeforeUnmount(() => {
     </header>
 
     <main class="m-stage">
-      <StarView v-if="tab === 'star'" :focus="focusNode?.id ?? null" />
-      <ReaderView v-else-if="tab === 'read'" :jump="jumpDoc" />
-      <GewuView v-else-if="tab === 'gewu'" />
-      <DebateView v-else-if="tab === 'debate'" />
-      <MineView v-else-if="tab === 'me'" />
-      <MethodsView v-else-if="tab === 'method'" />
-      <BookView v-else-if="tab === 'book'" />
-      <SettingsView v-else-if="tab === 'set'" />
+      <Transition name="view" mode="out-in">
+        <StarView v-if="tab === 'star'" key="star" :focus="focusNode?.id ?? null" />
+        <ReaderView v-else-if="tab === 'read'" key="read" :jump="jumpDoc" />
+        <GewuView v-else-if="tab === 'gewu'" key="gewu" />
+        <DebateView v-else-if="tab === 'debate'" key="debate" />
+        <MineView v-else-if="tab === 'me'" key="me" />
+        <MethodsView v-else-if="tab === 'method'" key="method" />
+        <BookView v-else-if="tab === 'book'" key="book" />
+        <SettingsView v-else-if="tab === 'set'" key="set" />
+      </Transition>
     </main>
 
     <nav class="m-tabs">
@@ -290,16 +292,15 @@ onBeforeUnmount(() => {
 
 .seal {
   background: var(--accent);
+  color: #fff;
 }
 
 .seal svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: #fff;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  /* 压缩标是瘦高的火形，给足高度 */
+  width: 15px;
+  height: 19px;
+  fill: currentColor;
+  stroke: none;
 }
 
 .back {
@@ -428,7 +429,34 @@ onBeforeUnmount(() => {
   stroke-linejoin: round;
 }
 
+/* 选中的那一格：图标轻轻抬起来，是「我在这一页」最省力的暗示 */
+.m-tab.on .wj-icon {
+  transform: translateY(-2px) scale(1.08);
+}
+
 .m-tab.on {
   color: var(--accent);
+}
+
+/* 提示条要抬到底部标签栏和手势条之上，否则会被压掉一半 */
+.toast {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 66px);
+  max-width: calc(100vw - 28px);
+  padding: 9px 16px;
+  font-size: 12px;
+}
+
+/* 手机端切页：只做淡入，不做位移 —— 位移在 60Hz 屏上容易看见跳帧 */
+.view-enter-active {
+  transition: opacity 0.16s var(--ease);
+}
+
+.view-leave-active {
+  transition: opacity 0.08s var(--ease);
+}
+
+.view-enter-from,
+.view-leave-to {
+  opacity: 0;
 }
 </style>

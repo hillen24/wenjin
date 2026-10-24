@@ -1,6 +1,6 @@
 {
   "name": "@wenjin/core",
-  "version": "3.5.1",
+  "version": "3.6.0",
   "private": true,
   "description": "问津核心库：领域模型、数据、存储、AI 调用、主题。不含 UI。",
   "license": "GPL-3.0-or-later",

@@ -161,8 +161,24 @@ function toggleTheme(): void {
   theme.value = core.theme.toggle();
 }
 
+/**
+ * 键盘快捷键：Alt + 1..7 直接切页。
+ *
+ * 用 Alt 而不是裸数字，是因为这些页面里有输入框和数字表单，
+ * 裸数字会把键入吃掉。Alt 组合在输入框里也不会误触。
+ */
+function onKeydown(e: KeyboardEvent): void {
+  if (!e.altKey || e.ctrlKey || e.metaKey) return;
+  const n = Number(e.key);
+  if (!Number.isInteger(n) || n < 1 || n > TABS.length) return;
+  e.preventDefault();
+  const target = TABS[n - 1];
+  if (target) tab.value = target.key;
+}
+
 onMounted(() => {
   window.addEventListener('hashchange', onHashChange);
+  window.addEventListener('keydown', onKeydown);
   // 启动补验：配置齐全但指纹还没通过时静默试一次，不指望用户记得点按钮
   void core.ai.autoVerify();
   /* 电脑端是局域网同步的服务端：把本机数据持续交给主进程，
@@ -172,6 +188,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('hashchange', onHashChange);
+  window.removeEventListener('keydown', onKeydown);
   window.clearTimeout(toastTimer);
   offAi();
 });
@@ -184,7 +201,7 @@ onBeforeUnmount(() => {
     <aside class="sidebar">
       <div class="brand">
         <span class="seal">
-          <svg aria-hidden="true"><use href="#i-logo" /></svg>
+          <svg aria-hidden="true"><use href="#i-mark" /></svg>
         </span>
         <div class="brand-text">
           <b>问津</b>
@@ -194,15 +211,17 @@ onBeforeUnmount(() => {
 
       <nav class="nav">
         <button
-          v-for="t in TABS"
+          v-for="(t, i) in TABS"
           :key="t.key"
           type="button"
           class="nav-btn"
           :class="{ on: tab === t.key }"
+          :title="`${t.label} · Alt+${i + 1}`"
           @click="tab = t.key"
         >
           <Icon :name="t.icon" :size="18" />
           <span>{{ t.label }}</span>
+          <span class="nav-key">{{ i + 1 }}</span>
         </button>
       </nav>
 
@@ -217,22 +236,25 @@ onBeforeUnmount(() => {
           <span>{{ theme === 'dark' ? '白天' : '黑天' }}</span>
         </button>
 
-        <div class="ai-chip" :class="aiTone" :title="aiTitle">
+        <!-- 状态条原来是个纯展示的 div，点了没反应；现在直接进设置，省一次找路 -->
+        <button type="button" class="ai-chip" :class="aiTone" :title="aiTitle" @click="nav.go('set')">
           <span class="dot" />
           <span class="chip-text">{{ aiLabel }}</span>
-        </div>
+        </button>
       </div>
     </aside>
 
     <main class="stage">
-      <StarView v-if="tab === 'star'" :focus="focusNode?.id ?? null" />
-      <ReaderView v-else-if="tab === 'read'" :jump="jumpDoc" />
-      <MethodsView v-else-if="tab === 'method'" />
-      <GewuView v-else-if="tab === 'gewu'" />
-      <DebateView v-else-if="tab === 'debate'" />
-      <BookView v-else-if="tab === 'book'" />
-      <SettingsView v-else-if="tab === 'set'" />
-      <div v-else class="fallback">{{ activeTab.label }}</div>
+      <Transition name="view" mode="out-in">
+        <StarView v-if="tab === 'star'" key="star" :focus="focusNode?.id ?? null" />
+        <ReaderView v-else-if="tab === 'read'" key="read" :jump="jumpDoc" />
+        <MethodsView v-else-if="tab === 'method'" key="method" />
+        <GewuView v-else-if="tab === 'gewu'" key="gewu" />
+        <DebateView v-else-if="tab === 'debate'" key="debate" />
+        <BookView v-else-if="tab === 'book'" key="book" />
+        <SettingsView v-else-if="tab === 'set'" key="set" />
+        <div v-else key="fallback" class="fallback">{{ activeTab.label }}</div>
+      </Transition>
     </main>
   </div>
 
@@ -277,16 +299,41 @@ onBeforeUnmount(() => {
   place-items: center;
   border-radius: 9px;
   background: var(--accent);
+  /* 标记是填充图形，靠 currentColor 上色 */
+  color: #fff;
+  transition: transform 0.3s var(--ease);
+}
+
+/* 悬停时火苗轻轻摇一下——符号是静的，但不能是死的 */
+.brand:hover .seal {
+  transform: rotate(-4deg) scale(1.04);
 }
 
 .seal svg {
+  /* 火形是瘦高的（12.5×18），给足高度才不显小 */
   width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: #fff;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  height: 24px;
+  fill: currentColor;
+  stroke: none;
+  /* 火焰摇曳：极小的角度摆动，只在 hover 时跑，不打扰阅读 */
+}
+
+.brand:hover .seal svg {
+  animation: flame-sway 2.4s var(--ease) infinite;
+  transform-origin: 50% 78%;
+}
+
+@keyframes flame-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  35% {
+    transform: rotate(3deg);
+  }
+  70% {
+    transform: rotate(-2deg);
+  }
 }
 
 .brand-text {
@@ -346,6 +393,71 @@ onBeforeUnmount(() => {
   color: var(--accent);
 }
 
+/* 快捷键提示：平时藏着，hover 整条导航时才浮出来 */
+.nav-key {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--ink3);
+  opacity: 0;
+  transition: opacity 0.16s var(--ease);
+}
+
+.nav:hover .nav-key {
+  opacity: 0.55;
+}
+
+/* ---------- 图标的微动效 ----------
+ * 每个图标只做「和它自己的语义有关」的一个小动作：
+ * 齿轮转、指南针摆、笔倾、月亮斜、星星涨。做多了就是廉价的抖动。
+ */
+
+.nav-btn:hover .i-gear {
+  transform: rotate(55deg);
+}
+
+.nav-btn:hover .i-compass {
+  transform: rotate(-16deg);
+}
+
+.nav-btn:hover .i-pen {
+  transform: rotate(-10deg) translateY(-0.5px);
+}
+
+.nav-btn:hover .i-moon {
+  transform: rotate(-12deg);
+}
+
+.nav-btn:hover .i-star {
+  transform: scale(1.14);
+}
+
+.nav-btn:hover .i-book,
+.nav-btn:hover .i-scale {
+  transform: translateY(-1.5px);
+}
+
+.nav-btn.on .i-star {
+  transform: scale(1.06);
+}
+
+/* 切页：极短的淡入 + 上浮，够用来「确认操作生效」，不够用来察觉动画 */
+.view-enter-active {
+  transition: opacity 0.18s var(--ease), transform 0.22s var(--ease);
+}
+
+.view-leave-active {
+  transition: opacity 0.1s var(--ease);
+}
+
+.view-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.view-leave-to {
+  opacity: 0;
+}
+
 .side-foot {
   display: flex;
   flex-direction: column;
@@ -381,6 +493,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 7px;
+  width: 100%;
   padding: 7px 11px;
   border-radius: var(--radius-sm);
   background: var(--card);
@@ -388,6 +501,12 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: var(--ink2);
   min-width: 0;
+  text-align: left;
+}
+
+.ai-chip:hover {
+  border-color: var(--line-hi);
+  color: var(--ink);
 }
 
 .chip-text {

@@ -18,5 +18,13 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!--
+            Android 12+ 走系统闪屏：只会用 windowSplashScreenBackground + 图标，
+            不看上面的 android:background。不同步设成品牌橙的话，
+            12 以上会先闪一帧白底再跳橙底，开屏像抽了一下。
+        -->
+        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <!-- 闪屏结束后要切回哪个主题。不写这一项，某些机型会卡在闪屏主题上 -->
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

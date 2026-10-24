@@ -690,7 +690,9 @@ onBeforeUnmount(() => {
 <template>
   <div class="reader">
     <div class="hint">
-      选中原文任何一句 → 弹出三问 · 回答里的概念可一键跳回星图 · 可存入我的哲学书 · 支持载入自己的 .txt / .md · 悬停段落可朗读
+      {{ narrow ? '长按选中一句 → 弹出三问' : '选中原文任何一句 → 弹出三问' }}
+      · 回答里的概念可一键跳回星图 · 可存入我的哲学书 · 支持载入自己的 .txt / .md
+      · {{ narrow ? '点段尾喇叭朗读' : '悬停段落可朗读' }}
     </div>
 
     <!-- 窄屏专用：三栏切换。宽屏下被 CSS 隐藏，不影响任何布局 -->
@@ -770,10 +772,10 @@ onBeforeUnmount(() => {
 
             <div class="doc-chips">
               <template v-if="doc.custom">
-                <Icon name="i-file" :size="13" /> 我的书库 · 点段落标记已读 · 悬停段落可朗读
+                <Icon name="i-file" :size="13" /> 我的书库 · 点段落标记已读 · {{ narrow ? '点喇叭朗读' : '悬停段落可朗读' }}
               </template>
               <template v-else>
-                点段落标记已读 · 选中一句话问 AI · 悬停右侧喇叭可单段朗读
+                点段落标记已读 · {{ narrow ? '长按选一句' : '选中一句话' }}问 AI · {{ narrow ? '点喇叭' : '悬停右侧喇叭' }}可单段朗读
               </template>
             </div>
 

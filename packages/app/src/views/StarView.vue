@@ -434,6 +434,8 @@ function toggleLit(id: string): void {
 
 const builderOpen = ref(false);
 const builderMode = ref<'ai' | 'manual'>('ai');
+/** 弹窗卡片本身，用来在打开时接住焦点（Esc 才能生效） */
+const builderCard = ref<HTMLElement | null>(null);
 
 const aiInput = ref('');
 const aiBusy = ref(false);
@@ -488,6 +490,19 @@ function openBuilder(): void {
   confirmClear.value = false;
   // 没接 AI 就别让用户对着一个按不动的按钮发呆
   builderMode.value = aiLive.value ? 'ai' : 'manual';
+  // 打开即聚焦：AI 页直接落在输入框上，手动页落在卡片上，Esc 才有地方接
+  void nextTick().then(() => {
+    const el = builderCard.value?.querySelector<HTMLTextAreaElement>('textarea');
+    (el ?? builderCard.value)?.focus();
+  });
+}
+
+/** Esc 关弹窗：键鼠用户最顺手的一下，之前只能去点右上角 */
+function onBuilderKey(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    closeBuilder();
+  }
 }
 
 function closeBuilder(): void {
@@ -915,12 +930,12 @@ onBeforeUnmount(() => {
     </aside>
 
     <!-- 星图共建弹窗：AI 规范化 / 手动填写 双路进同一个校验漏斗 -->
-    <div v-if="builderOpen" class="builder" @click.self="closeBuilder">
-      <div class="builder-card">
+    <div v-if="builderOpen" class="builder" @click.self="closeBuilder" @keydown="onBuilderKey">
+      <div ref="builderCard" class="builder-card" tabindex="-1">
         <div class="builder-head">
           <h3>共建星图</h3>
-          <button type="button" class="x" @click="closeBuilder">
-            <Icon name="i-minus" :size="14" />
+          <button type="button" class="x" title="关闭（Esc）" @click="closeBuilder">
+            <Icon name="i-close" :size="14" />
           </button>
         </div>
 
@@ -993,7 +1008,7 @@ onBeforeUnmount(() => {
             <button type="button" class="btn" :disabled="!form.name.trim()" @click="addManual">
               加入星图
             </button>
-            <span class="warn">填好直接入库，不用再点确认</span>
+            <span class="inline-tip">填好直接入库，不用再点确认</span>
           </div>
         </template>
 
@@ -1490,6 +1505,35 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* 打开时会被程序聚焦，但它是容器不是控件，不该出现焦点环 */
+  outline: none;
+}
+
+/* 弹窗淡入 + 微上浮；只看一眼就知道「它出现了」 */
+.builder {
+  animation: builder-in 0.2s var(--ease);
+}
+
+@keyframes builder-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.builder-card {
+  animation: card-in 0.24s var(--ease);
+}
+
+@keyframes card-in {
+  from {
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    transform: none;
+  }
 }
 
 .builder-head {
@@ -1630,6 +1674,12 @@ label.full {
   margin: 0;
   font-size: 11.5px;
   color: var(--gold, #d9a06b);
+}
+
+/* 中性说明文字：和 .warn 区分开，别让「填完直接入库」读起来像报错 */
+.inline-tip {
+  font-size: 11.5px;
+  color: var(--ink3);
 }
 
 .err {
