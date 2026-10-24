@@ -1,9 +1,0 @@
-{
-  "appId": "cn.wenjin.app",
-  "appName": "问津",
-  "webDir": "www",
-  "server": {
-    "androidScheme": "http",
-    "cleartextTraffic": true
-  }
-}

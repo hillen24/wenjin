@@ -1,31 +1,42 @@
-# 依赖与构建产物
+# 依赖
 node_modules/
+
+# 构建产物
 dist/
-dist[0-9]/
-build/
-out/
+dist-ssr/
+dist-app/
 release/
+coverage/
+.vite/
 
-# Capacitor / Android 生成物（跑 npm run add:android 自行生成）
-android/
-ios/
-.gradle/
+# 手机端构建与同步产物
+apps/mobile/www/
+apps/mobile/android/build/
+apps/mobile/android/app/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/capacitor-cordova-android-plugins/
+apps/mobile/android/app/src/main/assets/public/
+apps/mobile/android/app/src/main/assets/capacitor.config.json
+apps/mobile/android/app/src/main/assets/capacitor.plugins.json
+
+# 本机配置（含 Android SDK 路径，换机器就不一样）
 local.properties
-*.keystore
-*.jks
+*.local
 
-# 可执行产物不入库
+# 交付成品：单文件上百 MB，且超过 GitHub 100MB 上限
 *.exe
 *.apk
-*.aab
+*.msi
 *.dmg
-*.AppImage
 
-# 编辑器 / 系统
-.vscode/
-.idea/
+# 临时目录与本机截图草稿（正式截图在 docs/screenshots）
+_extract/
+_trash/
+shots/
+shots-m/
+
+# 杂项
+*.log
 .DS_Store
 Thumbs.db
-desktop.ini
-*.log
-npm-debug.log*
+shots-new/

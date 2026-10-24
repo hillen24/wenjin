@@ -1,0 +1,46 @@
+{
+  "name": "@wenjin/desktop",
+  "version": "3.3.0",
+  "private": true,
+  "description": "问津 · 电脑端",
+  "author": "wenjin",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc -p tsconfig.json",
+    "start": "electron .",
+    "dist": "vite build && electron-builder --win portable"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "electron": "45.0.0",
+    "electron-builder": "^26.15.3",
+    "vite": "^8.3.5",
+    "@wenjin/core": "*",
+    "@wenjin/ui": "*",
+    "vue": "^3.5.44"
+  },
+  "build": {
+    "appId": "cn.wenjin.desktop",
+    "productName": "问津",
+    "directories": {
+      "output": "dist-app"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "dist/**/*"
+    ],
+    "win": {
+      "target": "portable",
+      "executableName": "wenjin",
+      "artifactName": "问津-电脑版-3.3.0.exe"
+    },
+    "icon": "../../assets/icon.png"
+  }
+}

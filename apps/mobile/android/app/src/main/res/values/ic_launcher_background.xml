@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 前景是白色拱门，背景用品牌橙，合起来还原完整的问津 logo -->
+    <color name="ic_launcher_background">#E8623A</color>
+</resources>

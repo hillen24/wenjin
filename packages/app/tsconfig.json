@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@wenjin/core": ["../core/src/index.ts"],
+      "@wenjin/ui": ["../ui/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.vue"]
+}

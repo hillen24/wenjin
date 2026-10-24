@@ -1,0 +1,29 @@
+{
+  "name": "@wenjin/mobile",
+  "version": "3.3.0",
+  "private": true,
+  "description": "问津 · 思想栖所（手机端），Capacitor 封装",
+  "author": "wenjin",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "vue-tsc -p tsconfig.json",
+    "sync": "cap sync android",
+    "apk": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@wenjin/app": "*",
+    "@wenjin/core": "*",
+    "@wenjin/ui": "*",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "vite": "^8.0.0",
+    "vue": "^3.5.0"
+  }
+}

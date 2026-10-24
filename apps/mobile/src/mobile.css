@@ -1,0 +1,67 @@
+/**
+ * 手机端专属全局样式
+ *
+ * 只放「和移动设备本身有关」的东西：安全区、触摸反馈、滚动回弹。
+ * 版式与配色一律走 @wenjin/ui 的 token，不在这里另起一套。
+ */
+
+html,
+body {
+  /* 避免整个页面被拖动时露出白边，也避免下拉刷新误触 */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  /* 安卓 WebView 里 100vh 不把地址栏/导航条算进去，用 dvh 更准；
+     老 WebView 不认识 dvh 时退回 100vh。 */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+}
+
+/* 手机上没有「悬停」，:hover 会在点了之后粘住 —— 统一清掉。 */
+@media (hover: none) {
+  *:hover {
+    background-color: revert;
+    color: revert;
+    border-color: revert;
+  }
+}
+
+/* 滚动条在手机上是多余的，而且会占掉几像素宽度 */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* 可滚区域统一给个「能滚」的手感：惯性滚动 */
+.scroll-y {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+ * 视图顶部那条操作提示在手机上会占掉三行（390px 宽下最明显），
+ * 挤掉真正的内容。这里压到两行并收窄留白 —— 提示还在，但不再是主角。
+ *
+ * 两个坑：
+ * 1. 不要用 -webkit-line-clamp：display:-webkit-box 下算出来的盒高比两行矮，末行会被切掉半截。
+ * 2. 全局是 border-box，max-height 包含上下 padding（9+8=17px），
+ *    只写 3.2em 等于把两行的空间又减掉 17px，结果只剩一行多。
+ */
+@media (max-width: 760px) {
+  .hint {
+    padding: 9px 14px 8px;
+    font-size: 12px;
+    line-height: 1.6;
+    /* 3.2em = 两行（12px × 1.6 × 2），+17px 是上下 padding */
+    max-height: calc(3.2em + 17px);
+    overflow: hidden;
+  }
+}

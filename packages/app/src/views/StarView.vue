@@ -1,0 +1,954 @@
+<script setup lang="ts">
+/**
+ * 概念星系
+ *
+ * 这里能看清新旧写法的差别：
+ * 物理运算全在 @wenjin/core 的纯函数里（已有单测覆盖），
+ * 这个文件只负责「把坐标画出来」和「把指针事件翻译成物理参数」。
+ *
+ * 60fps 的动画刻意不走响应式：每帧直接 setAttribute，
+ * 让 Vue 只承担一次性结构渲染。用响应式驱动物理帧会拖垮列表 diff。
+ */
+
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { Icon } from '@wenjin/ui';
+import {
+  BASE_VIEW,
+  RELATION_NAME,
+  STAR_EDGES,
+  STAR_NODES,
+  blindSpots,
+  initBodies,
+  neighborIds,
+  nodeRadius,
+  relatedEdges,
+  relayout,
+  screenToView,
+  step,
+  zoomView,
+  type NodeKind,
+  type StarBody,
+  type ViewBox,
+} from '@wenjin/core';
+import { useCore } from '../providers';
+
+const core = useCore();
+
+/**
+ * focus：外部指定的选中节点（从伴读回答、格物卡、方法论卡跳过来时带过来的）。
+ * 视图是 v-if 挂载的，所以既要在挂载时接住，也要在已挂载时响应变化。
+ */
+const props = defineProps<{ focus?: string | null }>();
+
+/* ---------------- 状态 ---------------- */
+
+const view = shallowRef<ViewBox>({ ...BASE_VIEW });
+const bodies = shallowRef<Record<string, StarBody>>(initBodies(STAR_NODES, BASE_VIEW));
+
+const selectedId = ref<string | null>(null);
+const hoverId = ref<string | null>(null);
+/**
+ * 已点亮的概念。
+ * 旧版这里是写死的七项，点亮后刷新即丢；现在读 core.progress（落 localStorage）。
+ */
+const litIds = ref<string[]>([...core.progress.lit()]);
+
+const svgEl = ref<SVGSVGElement | null>(null);
+const panning = ref(false);
+
+/**
+ * 窄屏下侧栏变成底部滑出层，由这个开关控制。
+ * 宽屏上它不起作用（CSS 不给 .panel 加位移），所以两端共用一份状态也无害。
+ */
+const panelOpen = ref(false);
+
+/**
+ * 窄屏标签降噪。
+ *
+ * 星图有 27 个节点，每个都挂着名字。桌面端画布宽、节点散得开，看得清；
+ * 手机上一个 390px 宽的画布里塞 27 个名字，必然互相压字——点亮的、没点亮的
+ * 全糊成一团。所以窄屏只留「已点亮 / 选中 / 悬停」这三种名字，
+ * 其余节点只画点。名字随时可以在点开后的面板里看到，不会丢信息。
+ */
+const narrow = ref(false);
+
+function syncNarrow(): void {
+  const w = svgEl.value?.getBoundingClientRect().width ?? window.innerWidth;
+  narrow.value = w > 0 && w < 620;
+}
+
+/** DOM 引用。帧循环直接操作它们，不经过虚拟 DOM。 */
+const nodeEls = new Map<string, SVGGElement>();
+const lineEls = new Map<number, SVGLineElement>();
+
+let raf = 0;
+
+/* ---------------- 派生数据 ---------------- */
+
+const KIND_LABEL: Record<NodeKind, string> = {
+  school: '流派',
+  figure: '人物',
+  method: '方法论',
+  concept: '概念',
+};
+
+const viewBoxAttr = computed(
+  () => `${view.value.x} ${view.value.y} ${view.value.w} ${view.value.h}`,
+);
+
+const hoverSet = computed(() =>
+  hoverId.value ? neighborIds(STAR_EDGES, hoverId.value) : null,
+);
+
+const selected = computed(() =>
+  selectedId.value ? (STAR_NODES.find((n) => n.id === selectedId.value) ?? null) : null,
+);
+
+const selectedRels = computed(() =>
+  selectedId.value ? relatedEdges(STAR_EDGES, selectedId.value) : [],
+);
+
+const blind = computed(() => blindSpots(STAR_NODES, litIds.value));
+
+const litPct = computed(() => Math.round((litIds.value.length / STAR_NODES.length) * 100));
+
+/* ---------------- 帧循环 ---------------- */
+
+function loop(): void {
+  step(bodies.value, STAR_EDGES, view.value);
+
+  for (const [id, el] of nodeEls) {
+    const b = bodies.value[id];
+    if (!b) continue;
+    el.setAttribute('transform', `translate(${b.x.toFixed(2)},${b.y.toFixed(2)})`);
+  }
+
+  for (const [i, el] of lineEls) {
+    const edge = STAR_EDGES[i];
+    if (!edge) continue;
+    const A = bodies.value[edge[0]];
+    const B = bodies.value[edge[1]];
+    if (!A || !B) continue;
+    el.setAttribute('x1', A.x.toFixed(2));
+    el.setAttribute('y1', A.y.toFixed(2));
+    el.setAttribute('x2', B.x.toFixed(2));
+    el.setAttribute('y2', B.y.toFixed(2));
+  }
+
+  raf = requestAnimationFrame(loop);
+}
+
+/* ---------------- 坐标换算 ---------------- */
+
+/**
+ * 屏幕坐标 → viewBox 坐标。
+ *
+ * 必须走 getScreenCTM().inverse()：它会一并处理 preserveAspectRatio 造成的
+ * letterbox（容器比 viewBox 更"高瘦"时，内容上下留白）。
+ * 旧版早期用 (clientY-top)*540/height 硬算，没补偿 letterbox，
+ * 结果拖拽时纵向偏移严重失真。
+ */
+function toViewPoint(e: { clientX: number; clientY: number }): { x: number; y: number } {
+  const svg = svgEl.value;
+  if (!svg) return { x: 0, y: 0 };
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return { x: 0, y: 0 };
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+  return { x: p.x, y: p.y };
+}
+
+/* ---------------- 节点拖拽 ---------------- */
+
+let dragId: string | null = null;
+let dragMoved = false;
+
+function onNodeDown(e: PointerEvent, id: string): void {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const target = e.currentTarget as Element | null;
+  try {
+    target?.setPointerCapture(e.pointerId);
+  } catch {
+    /* 某些环境不支持捕获，忽略即可，拖拽仍能工作 */
+  }
+
+  dragId = id;
+  dragMoved = false;
+
+  const pt = toViewPoint(e);
+  const b = bodies.value[id];
+  if (b) {
+    b.fx = pt.x;
+    b.fy = pt.y;
+  }
+}
+
+function onNodeMove(e: PointerEvent, id: string): void {
+  if (dragId !== id) return;
+  dragMoved = true;
+  const pt = toViewPoint(e);
+  const b = bodies.value[id];
+  if (b) {
+    b.fx = pt.x;
+    b.fy = pt.y;
+  }
+}
+
+function onNodeUp(id: string): void {
+  if (dragId !== id) return;
+  const b = bodies.value[id];
+  if (b) {
+    b.fx = null;
+    b.fy = null;
+  }
+  dragId = null;
+  // 拖完立刻抬手会误触发 click，留一点冷却
+  setTimeout(() => {
+    dragMoved = false;
+  }, 60);
+}
+
+function onNodeClick(id: string): void {
+  if (dragMoved) return;
+  selectedId.value = id;
+  panelOpen.value = true;
+}
+
+/* ---------------- 画布平移与缩放 ---------------- */
+
+let panPointerId: number | null = null;
+let panOrigin: { x: number; y: number; view: ViewBox } | null = null;
+
+/**
+ * 当前按在画布上的所有指针。
+ *
+ * 手机上没有滚轮，缩放只能靠双指 —— 两根手指落下时立刻放弃平移改走缩放，
+ * 否则第一根手指已经把画布拖走一截了。鼠标环境这个表里永远只有一个 id，
+ * 所以下面的分支对它完全等价于原来的单指逻辑。
+ */
+const pointers = new Map<number, { x: number; y: number }>();
+let pinchStart: { dist: number; view: ViewBox; cx: number; cy: number } | null = null;
+
+function pinchGeom(): { dist: number; cx: number; cy: number } | null {
+  const pts = [...pointers.values()];
+  const a = pts[0];
+  const b = pts[1];
+  if (!a || !b) return null;
+  return {
+    dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+    cx: (a.x + b.x) / 2,
+    cy: (a.y + b.y) / 2,
+  };
+}
+
+function onCanvasDown(e: PointerEvent): void {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  // 第二根手指落下：切到双指缩放，并作废已经开始的平移
+  if (pointers.size === 2) {
+    const g = pinchGeom();
+    if (g) pinchStart = { dist: g.dist, view: { ...view.value }, cx: g.cx, cy: g.cy };
+    panPointerId = null;
+    panOrigin = null;
+    panning.value = false;
+    return;
+  }
+
+  if (pointers.size > 2) return;
+
+  const target = e.target as Element | null;
+  if (target?.closest('g.node')) return;
+
+  try {
+    svgEl.value?.setPointerCapture(e.pointerId);
+  } catch {
+    /* 忽略 */
+  }
+
+  panPointerId = e.pointerId;
+  panOrigin = { x: e.clientX, y: e.clientY, view: view.value };
+  panning.value = true;
+}
+
+function onCanvasMove(e: PointerEvent): void {
+  if (pointers.has(e.pointerId)) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+
+  // 双指：按两指间距的变化比例缩放，锚点是两指中点
+  if (pinchStart && pointers.size >= 2) {
+    const g = pinchGeom();
+    if (!g) return;
+    // 手指张开 → ratio > 1 → 视野该缩小（即放大），所以取倒数
+    const factor = 1 / (g.dist / pinchStart.dist);
+    const anchor = toViewPoint({ clientX: pinchStart.cx, clientY: pinchStart.cy });
+    view.value = zoomView(pinchStart.view, factor, anchor);
+    return;
+  }
+
+  if (panPointerId !== e.pointerId || !panOrigin) return;
+  const rect = svgEl.value?.getBoundingClientRect();
+  if (!rect) return;
+
+  // 屏幕像素 → viewBox 单位。缩放程度不同，同样的手部位移对应的世界距离也不同。
+  const dx = screenToView(e.clientX - panOrigin.x, rect.width, panOrigin.view);
+  const dy = screenToView(e.clientY - panOrigin.y, rect.width, panOrigin.view);
+
+  view.value = {
+    ...panOrigin.view,
+    x: panOrigin.view.x - dx,
+    y: panOrigin.view.y - dy,
+  };
+}
+
+function onCanvasUp(e: PointerEvent): void {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchStart = null;
+
+  if (panPointerId !== e.pointerId) return;
+  panPointerId = null;
+  panOrigin = null;
+  panning.value = false;
+}
+
+function onWheel(e: WheelEvent): void {
+  const focus = toViewPoint(e);
+  view.value = zoomView(view.value, e.deltaY < 0 ? 0.92 : 1.09, focus);
+}
+
+/* ---------------- 操作 ---------------- */
+
+/**
+ * 把标准视野按容器适配一遍。
+ *
+ * BASE_VIEW 是 680×540 的宽屏比例，直接塞进 390px 宽的手机：
+ * 节点半径 10 的「概念」直径只剩 11 个 CSS 像素，手指根本点不中。
+ * 窄屏下按 0.62 收窄视野（等比，中心对齐），节点视觉尺寸放大到可点。
+ */
+function fitView(source: ViewBox): ViewBox {
+  const rect = svgEl.value?.getBoundingClientRect();
+  const narrow = !!rect && rect.width > 0 && rect.width < 620;
+  if (!narrow) return { ...source };
+
+  /**
+   * k 的取值是被"标签"逼出来的，不是拍脑袋。
+   *
+   * 节点云直径约 380 个用户单位，加上两侧标签各约 30 单位 ≈ 440 单位要装进
+   * 390px 宽。k=0.62 时内容占 407px，最右侧那圈节点的名字会被切掉半个字；
+   * k=0.7 时占 360px，左右各留 15px 余量，正好。
+   */
+  const k = 0.7;
+  const w = source.w * k;
+  const h = source.h * k;
+  return {
+    x: source.x + (source.w - w) / 2,
+    y: source.y + (source.h - h) / 2,
+    w,
+    h,
+  };
+}
+
+function doRelayout(): void {
+  relayout(
+    bodies.value,
+    STAR_NODES.map((n) => n.id),
+    view.value,
+  );
+  view.value = fitView(BASE_VIEW);
+}
+
+function lightUp(id: string): void {
+  if (!litIds.value.includes(id)) litIds.value = [...litIds.value, id];
+}
+
+/* ---------------- 生命周期 ---------------- */
+
+onMounted(() => {
+  const svg = svgEl.value;
+  if (!svg) return;
+
+  syncNarrow();
+  window.addEventListener('resize', syncNarrow);
+
+  // 结构由 Vue 渲染一次，之后帧循环直接操作这批元素
+  for (const el of svg.querySelectorAll<SVGGElement>('g.node')) {
+    const id = el.dataset.node;
+    if (id) nodeEls.set(id, el);
+  }
+  for (const el of svg.querySelectorAll<SVGLineElement>('line.edge')) {
+    const idx = Number(el.dataset.idx);
+    if (Number.isFinite(idx)) lineEls.set(idx, el);
+  }
+
+  // 窄屏重新拟合视野。必须放在挂载之后 —— 这之前量不到容器尺寸。
+  view.value = fitView(BASE_VIEW);
+
+  raf = requestAnimationFrame(loop);
+
+  // 从别处跳进来时带的选中节点
+  if (props.focus) {
+    selectedId.value = props.focus;
+    panelOpen.value = true;
+  }
+});
+
+/* 已挂载时外部又指定了节点（同一个视图内导航） */
+watch(
+  () => props.focus,
+  (id) => {
+    if (id) {
+      selectedId.value = id;
+      panelOpen.value = true;
+    }
+  },
+);
+
+/* 格物点亮后星图要立刻反映，不用等刷新 */
+const offLit = core.progress.subscribe((lit) => {
+  litIds.value = [...lit];
+});
+
+onBeforeUnmount(() => {
+  offLit();
+  cancelAnimationFrame(raf);
+  window.removeEventListener('resize', syncNarrow);
+  nodeEls.clear();
+  lineEls.clear();
+});
+</script>
+
+<template>
+  <div class="star-view">
+    <div class="canvas" :class="{ panning }">
+      <svg
+        ref="svgEl"
+        :viewBox="viewBoxAttr"
+        preserveAspectRatio="xMidYMid meet"
+        @pointerdown="onCanvasDown"
+        @pointermove="onCanvasMove"
+        @pointerup="onCanvasUp"
+        @pointercancel="onCanvasUp"
+        @wheel.prevent="onWheel"
+      >
+        <defs>
+          <marker
+            id="ah"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="5"
+            markerHeight="5"
+            orient="auto-start-reverse"
+          >
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.2" />
+          </marker>
+        </defs>
+
+        <line
+          v-for="(e, i) in STAR_EDGES"
+          :key="`e${i}`"
+          class="edge"
+          :class="e[2]"
+          :data-idx="i"
+          marker-end="url(#ah)"
+        />
+
+        <g
+          v-for="n in STAR_NODES"
+          :key="n.id"
+          class="node"
+          :class="[{ dim: hoverSet && !hoverSet.has(n.id) }, 'k-' + n.kind]"
+          :data-node="n.id"
+          @pointerdown="onNodeDown($event, n.id)"
+          @pointermove="onNodeMove($event, n.id)"
+          @pointerup="onNodeUp(n.id)"
+          @pointercancel="onNodeUp(n.id)"
+          @pointerenter="hoverId = n.id"
+          @pointerleave="hoverId = null"
+          @click="onNodeClick(n.id)"
+        >
+          <!--
+            透明命中圈：触屏上圆点只有十来像素，手指点不准。
+            给它垫一个更大的圈专门收事件，视觉上完全不可见。
+          -->
+          <circle class="hit" :r="nodeRadius(n.kind) + 11" />
+          <circle class="ring" :r="nodeRadius(n.kind) + 7" :opacity="selectedId === n.id ? 0.9 : 0" />
+          <circle class="dot" :class="{ lit: litIds.includes(n.id) }" :r="nodeRadius(n.kind)" />
+          <text
+            v-if="!narrow || litIds.includes(n.id) || selectedId === n.id || hoverId === n.id"
+            class="lbl"
+            :class="{ lit: litIds.includes(n.id) }"
+            text-anchor="middle"
+            :y="nodeRadius(n.kind) + 13"
+          >
+            {{ n.name }}
+          </text>
+        </g>
+      </svg>
+
+      <div class="hud">
+        <span>已点亮 {{ litIds.length }} / {{ STAR_NODES.length }} · {{ litPct }}%</span>
+        <span v-if="narrow" class="hud-tip">点节点看名字</span>
+        <button type="button" @click="doRelayout">
+          <Icon name="i-refresh" :size="13" />
+          重新布局
+        </button>
+      </div>
+    </div>
+
+    <aside class="panel" :class="{ open: panelOpen }">
+      <!-- 窄屏专用：收起底部滑出层。宽屏下这个按钮被 CSS 藏起来 -->
+      <button type="button" class="panel-close" @click="panelOpen = false">
+        <Icon name="i-minus" :size="16" />
+      </button>
+
+      <div v-if="!selected" class="empty">
+        <p>点击任意节点查看它是什么，以及它跟谁有关系。</p>
+        <p class="dim">拖动节点可以重排；空白处拖拽平移，双指（或滚轮）缩放。</p>
+      </div>
+
+      <div v-else class="detail">
+        <h3>{{ selected.name }}</h3>
+        <div class="kind">
+          {{ KIND_LABEL[selected.kind] }} · {{ selected.school }} ·
+          <b v-if="litIds.includes(selected.id)" class="on">已点亮</b>
+          <span v-else class="off">盲区</span>
+        </div>
+        <p class="brief">{{ selected.brief }}</p>
+        <p class="src">出处：{{ selected.src }}</p>
+
+        <button
+          v-if="!litIds.includes(selected.id)"
+          type="button"
+          class="btn"
+          @click="lightUp(selected.id)"
+        >
+          点亮此节点
+        </button>
+
+        <div v-if="selectedRels.length" class="rels">
+          <h4>关系网</h4>
+          <button
+            v-for="r in selectedRels"
+            :key="r.other + r.relation"
+            type="button"
+            class="rel"
+            @click="selectedId = r.other"
+          >
+            <span>{{ STAR_NODES.find((n) => n.id === r.other)?.name ?? r.other }}</span>
+            <span class="rel-meta">
+              {{ r.direction }} {{ RELATION_NAME[r.relation] }}
+              <template v-if="r.note"> · {{ r.note }}</template>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div class="blind">
+        <h4>盲区检测 · 各星区点亮率</h4>
+        <div v-for="b in blind" :key="b.school" class="blind-row">
+          <span class="school">{{ b.school }}</span>
+          <div class="bar"><i :class="{ low: b.pct < 40 }" :style="{ width: Math.max(b.pct, 4) + '%' }" /></div>
+          <b>{{ b.pct }}%</b>
+        </div>
+      </div>
+    </aside>
+  </div>
+</template>
+
+<style scoped>
+.star-view {
+  display: flex;
+  height: 100%;
+  /* 窄屏下侧栏是绝对定位的滑出层，需要它作为定位基准 */
+  position: relative;
+}
+
+
+/* 窄屏专用的收起把手。宽屏不存在这个概念，所以默认不占位。 */
+.panel-close {
+  display: none;
+  align-self: center;
+  flex: none;
+  width: 58px;
+  height: 20px;
+  place-items: center;
+  color: var(--ink3);
+}
+
+.panel-close svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+/* ---------- 画布 ---------- */
+
+.canvas {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  background: var(--star-bg);
+}
+
+/* 只作用于画布本身那个 svg。
+   写成 .canvas svg 会把 hud 里的图标也一起撑成 100%（第一次截图就翻车了）。 */
+.canvas > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  /* 触屏上禁用默认手势，否则拖节点会变成滚页面 */
+  touch-action: none;
+}
+
+.canvas.panning > svg {
+  cursor: grabbing;
+}
+
+/* 边 */
+.edge {
+  stroke: var(--star-edge);
+  stroke-width: 1;
+  opacity: 0.75;
+  transition: opacity 0.2s;
+}
+
+.edge.proposes,
+.edge.refines {
+  stroke-dasharray: 1.5 4;
+}
+
+.edge.opposes {
+  /* v2.1 这里写的变量名是 --star-edge-opposes（多了个 s），
+     变量不存在 → 回落到默认色，"反对"关系从来没显示成红色。已修正。 */
+  stroke: var(--star-edge-oppose);
+  stroke-dasharray: 5 4;
+}
+
+/* 节点 */
+.node {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.node.dim {
+  opacity: 0.18;
+}
+
+.dot {
+  stroke: var(--bg);
+  stroke-width: 2;
+  transition: r 0.15s ease, filter 0.2s ease, opacity 0.2s;
+}
+
+.k-school .dot {
+  fill: var(--n-school);
+}
+
+.k-figure .dot {
+  fill: var(--n-figure);
+}
+
+.k-method .dot {
+  fill: var(--n-method);
+}
+
+.k-concept .dot {
+  fill: var(--n-concept);
+}
+
+/* 未点亮：降为轮廓，靠"空"来表达"你还没读过" */
+.dot:not(.lit) {
+  fill: var(--n-off);
+  stroke: var(--n-off-line);
+}
+
+.node:hover .dot {
+  r: 17;
+}
+
+.ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  transition: opacity 0.18s;
+}
+
+/* fill: none 本身不接收事件，必须显式放开 pointer-events 才有命中区域 */
+.hit {
+  fill: none;
+  pointer-events: all;
+}
+
+.lbl {
+  font-family: inherit;
+  font-size: 11px;
+  fill: var(--star-ink-off);
+  pointer-events: none;
+  transition: opacity 0.2s;
+  /* 标签压在密集的边上时，用背景色给文字描一圈，保证任何位置都读得清。
+     旧版没有这层，标签跟边叠在一起基本看不清。 */
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.lbl.lit {
+  fill: var(--star-ink);
+}
+
+.k-method .lbl.lit {
+  font-weight: 600;
+}
+
+/* 状态条 */
+.hud {
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--star-legend-bg);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+.hud button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink2);
+  font-size: 12px;
+}
+
+.hud button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.hud button:hover {
+  color: var(--accent);
+}
+
+/* ---------- 右侧面板 ---------- */
+
+.panel {
+  width: 296px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 16px;
+  border-left: 1px solid var(--line);
+  background: var(--card);
+  overflow-y: auto;
+}
+
+.empty p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.7;
+}
+
+.empty .dim {
+  font-size: 12px;
+  color: var(--ink3);
+}
+
+.detail h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.kind {
+  font-size: 12px;
+  color: var(--ink3);
+  margin-bottom: 10px;
+}
+
+.kind .on {
+  color: var(--accent);
+}
+
+.kind .off {
+  color: var(--ink3);
+}
+
+.brief {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--ink);
+}
+
+.src {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--ink3);
+}
+
+.btn {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.btn:hover {
+  background: var(--accent-hi);
+}
+
+.rels h4,
+.blind h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink3);
+  letter-spacing: 0.04em;
+}
+
+.rel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: var(--radius-xs);
+  text-align: left;
+  font-size: 12.5px;
+  color: var(--ink2);
+}
+
+.rel:hover {
+  background: var(--card-hi);
+  color: var(--ink);
+}
+
+.rel-meta {
+  font-size: 11.5px;
+  color: var(--ink3);
+}
+
+/* ---------- 盲区 ---------- */
+
+.blind {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.blind-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--ink2);
+  margin-bottom: 6px;
+}
+
+.school {
+  width: 68px;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--field);
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--jade);
+}
+
+.bar i.low {
+  background: var(--gold);
+}
+
+.blind-row b {
+  width: 34px;
+  text-align: right;
+  font-weight: 500;
+  color: var(--ink3);
+}
+
+/* ============================================================
+ * 窄屏（手机）
+ *
+ * 右栏 296px 固定宽度会把 390px 的屏吃掉四分之三，
+ * 星图被挤成左边一条缝（这个在截图里非常明显）。
+ * 这里改成底部滑出层：点节点弹出、点把手收起。
+ * ============================================================ */
+
+@media (max-width: 760px) {
+  .panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 54vh;
+    padding: 6px 16px 20px;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.34);
+    transform: translateY(102%);
+    transition: transform 0.26s var(--ease);
+    z-index: 3;
+  }
+
+  .panel.open {
+    transform: translateY(0);
+  }
+
+  .panel-close {
+    display: grid;
+  }
+
+  .hud {
+    left: 10px;
+    bottom: 10px;
+    gap: 8px;
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  /* 窄屏标签降噪后，得让用户知道"名字不是没了，是点一下才出来" */
+  .hud-tip {
+    padding-left: 8px;
+    border-left: 1px solid var(--line);
+    color: var(--ink3);
+    font-size: 10.5px;
+  }
+
+  .hud button {
+    gap: 4px;
+    font-size: 11px;
+  }
+}
+</style>

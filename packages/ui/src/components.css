@@ -1,0 +1,497 @@
+/**
+ * 通用组件样式
+ *
+ * 只放「跨视图重复出现」的东西：卡片、按钮、输入、对话气泡、弹层、提示条。
+ * 视图自己的布局留在各自 <style scoped> 里。
+ *
+ * 命名沿用 v2.x 的类名（.panel / .btn / .chip / .msg），是为了让旧截图与新界面
+ * 能一一对照 —— 迁移期的对账成本比好看重要。
+ */
+
+/* ============================================================
+ * 卡片
+ * ============================================================ */
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--sh-card);
+  transition: background-color 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+
+.panel h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.panel h4 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink2);
+}
+
+.panel .kind {
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  color: var(--ink3);
+}
+
+.panel .brief {
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--ink2);
+}
+
+.panel .src {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--ink3);
+}
+
+/* 顶部的一句说明，出现在每个视图的顶端 */
+.hint {
+  flex: none;
+  padding: 14px 26px 12px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink3);
+  border-bottom: 1px solid var(--line);
+}
+
+.hint b {
+  color: var(--ink2);
+  font-weight: 500;
+}
+
+/* ============================================================
+ * 按钮
+ * ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: filter 0.16s var(--ease), background 0.16s var(--ease);
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+}
+
+.btn:active {
+  transform: translateY(0.5px);
+}
+
+.btn svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 1px solid var(--line-hi);
+  color: var(--ink2);
+}
+
+.btn.ghost:hover {
+  background: var(--card-hi);
+  color: var(--ink);
+  filter: none;
+}
+
+.btn.teal {
+  background: var(--teal);
+  color: #fff;
+}
+
+.btn.ochre {
+  background: var(--ochre);
+  color: #fff;
+}
+
+.btn.sm {
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:disabled:hover {
+  filter: none;
+}
+
+/* ============================================================
+ * 标签
+ * ============================================================ */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  margin: 0 6px 6px 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 0.16s var(--ease);
+}
+
+.chip:hover {
+  background: var(--accent-soft);
+  filter: brightness(1.18);
+}
+
+.chip.entry {
+  background: var(--ochre-soft);
+  color: var(--ochre);
+  cursor: default;
+}
+
+/* ============================================================
+ * 数字统计条
+ * ============================================================ */
+
+.stat-row {
+  display: flex;
+  gap: 8px;
+}
+
+.stat {
+  flex: 1;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  text-align: center;
+}
+
+.stat b {
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat span {
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+/* ============================================================
+ * 对话
+ * ============================================================ */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.msg {
+  max-width: 84%;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg.ai {
+  align-self: flex-start;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+.msg.me {
+  align-self: flex-end;
+  background: var(--bubble-me);
+  color: var(--ink);
+}
+
+.msg .who {
+  margin-bottom: 4px;
+  font-size: 11.5px;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.msg.me .who {
+  color: var(--ink3);
+}
+
+.quick-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.quick-opts button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-hi);
+  background: var(--card);
+  color: var(--ink2);
+  font-size: 12.5px;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease);
+}
+
+.quick-opts button:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--accent);
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chat-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--field);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.16s var(--ease);
+}
+
+.chat-input input:focus {
+  border-color: var(--accent);
+}
+
+/* ============================================================
+ * 弹层
+ * ============================================================ */
+
+.mask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 40px 20px;
+  background: var(--mask);
+  backdrop-filter: blur(6px);
+  animation: mask-in 0.18s var(--ease);
+}
+
+.modal {
+  position: relative;
+  width: min(620px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 26px 28px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-pop);
+  animation: modal-in 0.2s var(--ease);
+}
+
+.modal h3 {
+  margin: 0 0 2px;
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.modal .sub {
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  color: var(--ink3);
+}
+
+.modal h5 {
+  margin: 18px 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+.modal ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13.5px;
+  line-height: 1.85;
+}
+
+.modal .misuse {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--rose);
+  background: var(--field);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink2);
+}
+
+.modal .close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink3);
+}
+
+.modal .close:hover {
+  background: var(--card-hi);
+  color: var(--ink);
+}
+
+.modal .close svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+@keyframes mask-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+/* ============================================================
+ * 跳转按钮（卡片底部那排「去某处」）
+ * ============================================================ */
+
+.jump-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.jump-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--field);
+  font-size: 12.5px;
+  color: var(--ink2);
+  text-align: left;
+  transition: border-color 0.16s var(--ease), background 0.16s var(--ease);
+}
+
+.jump-btn:hover {
+  border-color: var(--accent);
+  background: var(--card-hi);
+  color: var(--ink);
+}
+
+.jump-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.jump-btn span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.jump-btn small {
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+.jump-btn.hot {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.jump-btn.hot small {
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+.jump-btn.off {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+ * 提示条
+ * ============================================================ */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  z-index: 80;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transform: translate(-50%, 12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s var(--ease), transform 0.22s var(--ease);
+}
+
+.toast.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ============================================================
+ * 衬线体：用在原文、命题、书名上
+ * ============================================================ */
+
+.serif {
+  font-family: var(--serif);
+}

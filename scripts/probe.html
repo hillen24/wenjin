@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        margin: 0;
+        padding: 10px;
+        background: #101214;
+        color: #7ef0a0;
+        font: 11px/1.5 Consolas, monospace;
+      }
+      iframe {
+        position: absolute;
+        left: -2000px;
+        width: 390px;
+        height: 844px;
+        border: 0;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <pre id="out">loading…</pre>
+    <iframe id="f"></iframe>
+    <script>
+      const out = document.getElementById('out');
+      const f = document.getElementById('f');
+      /* 页面用 ?v=method&sel=.m-tab,.foo 指定，避免每次改文件 */
+      const q = new URLSearchParams(location.search);
+      const hash = q.get('v') || 'me';
+      const sels = (q.get('sel') || '.m-tab').split(',').filter(Boolean);
+      f.src = '/#' + hash;
+
+      f.onload = () => {
+        setTimeout(() => {
+          const win = f.contentWindow;
+          const doc = f.contentDocument;
+          const lines = ['hash=' + hash, '视口 ' + win.innerWidth + 'x' + win.innerHeight];
+
+          for (const sel of sels) {
+            const els = doc.querySelectorAll(sel);
+            lines.push('--- ' + sel + '（' + els.length + '）');
+            els.forEach((el, i) => {
+              if (i > 2) return;
+              const r = el.getBoundingClientRect();
+              const cs = win.getComputedStyle(el);
+              lines.push(
+                ` [${i}] ${r.width.toFixed(0)}x${r.height.toFixed(0)} @${r.x.toFixed(0)},${r.y.toFixed(0)}` +
+                  ` color=${cs.color} opacity=${cs.opacity} vis=${cs.visibility}` +
+                  ` fs=${cs.fontSize} lh=${cs.lineHeight} disp=${cs.display}` +
+                  ` text=${JSON.stringify((el.textContent || '').trim().slice(0, 20))}` +
+                  ` html=${el.tagName}`,
+              );
+            });
+          }
+
+          /* 再取一次底栏那个 span 的祖先链颜色，看是谁把颜色吃了 */
+          const span = doc.querySelector('.m-tab span');
+          if (span) {
+            lines.push('--- 祖先链 ---');
+            let n = span;
+            for (let k = 0; k < 5 && n; k++) {
+              const cs = win.getComputedStyle(n);
+              lines.push(
+                ` ${n.tagName}.${n.className || ''} color=${cs.color} fs=${cs.fontSize}`,
+              );
+              n = n.parentElement;
+            }
+          }
+
+          out.textContent = lines.join('\n');
+        }, 900);
+      };
+    </script>
+  </body>
+</html>

@@ -1,0 +1,97 @@
+/**
+ * 全局基础样式
+ *
+ * 只放「每个应用都一样」的东西。布局、组件样式归各应用自己管。
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* 主题切换时给一个极短的过渡，避免整屏闪断 */
+  transition: background-color 0.24s var(--ease), color 0.24s var(--ease);
+}
+
+#app {
+  height: 100%;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* 暗色下细滚动条，亮色下也偏细，不喧宾夺主 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-hi) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--line-hi);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 屏幕阅读器专用文本 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 尊重系统的「减少动效」偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

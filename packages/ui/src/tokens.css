@@ -1,0 +1,172 @@
+/**
+ * 问津设计 token
+ *
+ * 两套主题共用同一组变量名，切换时只换值不换名 ——
+ * 组件侧永远写 var(--ink)，不需要知道当前是明是暗。
+ *
+ * 原样承自 v2.1 单文件版的 :root 变量表，未做重命名：
+ * 变量名已经渗进几千行样式里，改名只会制造无谓的迁移风险。
+ */
+
+:root {
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-xs: 8px;
+
+  /* 字体栈。system-ui 打头，各平台用各自的系统字体。 */
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "JetBrains Mono", "PingFang SC", monospace;
+  --sans: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", "Noto Sans SC", sans-serif;
+  --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif;
+
+  /* 缓动曲线：起步快、收尾稳，比 ease-out 更「有手感」 */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --ochre-soft: rgba(255, 106, 77, 0.14);
+  --teal-soft: rgba(79, 209, 197, 0.13);
+}
+
+/* ============================================================
+ * 暗色（默认）
+ * ============================================================ */
+
+:root,
+:root[data-theme="dark"] {
+  --bg: #0b0e14;
+  --bg2: #0e1320;
+  --card: #141a28;
+  --card-hi: #1b2436;
+  --field: #0e1320;
+  --field-2: #161e2e;
+  --bubble-me: #27334c;
+
+  --line: rgba(148, 163, 184, 0.13);
+  --line-hi: rgba(148, 163, 184, 0.28);
+
+  --ink: #e9edf4;
+  --ink2: #98a4b8;
+  --ink3: #5d6880;
+
+  --accent: #ff6a4d;
+  --accent-hi: #ff8a70;
+  --accent-soft: rgba(255, 106, 77, 0.14);
+  --accent-ink: #fff;
+
+  --jade: #4fd1c5;
+  --jade-deep: #2fa39a;
+  --jade-soft: rgba(79, 209, 197, 0.13);
+  --rose: #fb7185;
+  --gold: #e8b84b;
+  --steel: #7da7d9;
+
+  --ochre: #ff6a4d;
+  --teal: #4fd1c5;
+  --red: #fb7185;
+
+  /* 纸面：精读页用它做「纸」的质感，与主界面区分开 */
+  --paper: #f6f4ee;
+  --paper-card: #ffffff;
+  --paper-ink: #23262d;
+  --paper-ink2: #6e7480;
+  --paper-line: #e4e0d3;
+  --paper-accent: #c24a2e;
+
+  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.22), 0 10px 28px rgba(0, 0, 0, 0.26);
+  --sh-pop: 0 18px 50px rgba(0, 0, 0, 0.52);
+
+  --sb-bg: rgba(11, 14, 20, 0.78);
+  --mask: rgba(7, 10, 16, 0.66);
+
+  --star-bg: radial-gradient(ellipse 55% 50% at 50% 42%, rgba(255, 106, 77, 0.075), transparent 70%),
+    radial-gradient(ellipse 85% 75% at 50% 112%, rgba(79, 209, 197, 0.05), transparent 60%),
+    radial-gradient(circle at 50% 45%, #151d2e 0%, #0b0e14 80%);
+  --star-dot: rgba(148, 163, 184, 0.1);
+
+  /* 星图节点语义色：按节点类型着色，不按学校 */
+  --n-method: #ff6a4d;
+  --n-school: #7da7d9;
+  --n-figure: #4fd1c5;
+  --n-concept: #a8b3c4;
+  --n-off: rgba(148, 163, 184, 0.1);
+  --n-off-line: rgba(148, 163, 184, 0.55);
+  --star-ink: #e9edf4;
+  --star-ink-off: #5d6880;
+  --star-edge: rgba(148, 163, 184, 0.42);
+  --star-edge-oppose: #fb7185;
+  --star-legend-bg: rgba(19, 26, 40, 0.78);
+
+  /* 格物卡：这一块刻意做成「宣纸/便签」的暖调，和主界面拉开层次 */
+  --gw-grad: linear-gradient(135deg, #1b2436, #141b29);
+  --gw-line: rgba(232, 184, 75, 0.28);
+  --gw-line-soft: rgba(232, 184, 75, 0.2);
+}
+
+/* ============================================================
+ * 亮色
+ * ============================================================ */
+
+:root[data-theme="light"] {
+  --bg: #f5f5f7;
+  --bg2: #ededf0;
+  --card: #ffffff;
+  --card-hi: #f7f7f9;
+  --field: #f2f2f5;
+  --field-2: #ebebef;
+  --bubble-me: #ffe8e1;
+
+  --line: rgba(0, 0, 0, 0.07);
+  --line-hi: rgba(0, 0, 0, 0.14);
+
+  --ink: #1d1d1f;
+  --ink2: #6e6e73;
+  --ink3: #aeaeb2;
+
+  --accent: #e0452a;
+  --accent-hi: #c73a22;
+  --accent-soft: rgba(224, 69, 42, 0.09);
+  --accent-ink: #fff;
+
+  --jade: #12948a;
+  --jade-deep: #0e7a72;
+  --jade-soft: rgba(18, 148, 138, 0.1);
+  --rose: #e11d48;
+  --gold: #a67c00;
+  --steel: #3d6fa8;
+
+  --ochre: #e0452a;
+  --teal: #12948a;
+  --red: #e11d48;
+
+  --paper: #fffdf8;
+  --paper-card: #ffffff;
+  --paper-ink: #1d1d1f;
+  --paper-ink2: #75757c;
+  --paper-line: #ece7dc;
+  --paper-accent: #c24a2e;
+
+  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 28px rgba(0, 0, 0, 0.07);
+  --sh-pop: 0 18px 50px rgba(0, 0, 0, 0.18);
+
+  --sb-bg: rgba(245, 245, 247, 0.8);
+  --mask: rgba(0, 0, 0, 0.32);
+
+  --star-bg: radial-gradient(ellipse 60% 55% at 50% 40%, rgba(61, 111, 168, 0.07), transparent 70%),
+    radial-gradient(ellipse 90% 80% at 50% 115%, rgba(224, 69, 42, 0.05), transparent 62%),
+    radial-gradient(circle at 50% 45%, #fbfcfe 0%, #e9edf3 85%);
+  --star-dot: rgba(15, 23, 42, 0.06);
+
+  --n-method: #e0452a;
+  --n-school: #3d6fa8;
+  --n-figure: #12948a;
+  --n-concept: #64748b;
+  --n-off: rgba(15, 23, 42, 0.05);
+  --n-off-line: rgba(15, 23, 42, 0.26);
+  --star-ink: #1d1d1f;
+  --star-ink-off: #94a0b4;
+  --star-edge: rgba(15, 23, 42, 0.22);
+  --star-edge-oppose: #e11d48;
+  --star-legend-bg: rgba(255, 255, 255, 0.82);
+
+  --gw-grad: linear-gradient(135deg, #fffdf4, #fff6de);
+  --gw-line: rgba(166, 124, 0, 0.32);
+  --gw-line-soft: rgba(166, 124, 0, 0.2);
+}

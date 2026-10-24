@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>问津图标源</title>
+    <style>
+      /* 512×512 应用图标底稿。用 Edge 无头截图为 PNG，再交给 electron-builder 转 ico。
+         图形与侧栏 logo 完全一致：开口拱门 + 渡口横线 + 拱里一点光。 */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 512px;
+        height: 512px;
+        overflow: hidden;
+      }
+
+      .wrap {
+        /* 用 fixed + inset:0 而不是写死 512px：写死时底部圆角会刚好落在画布边界之外被裁掉 */
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        /* 与暗色主题的 --accent 同色系，圆角 112px 接近 Windows 11 图标规范 */
+        background: radial-gradient(120% 120% at 30% 18%, #ff8a5c 0%, #e8623a 46%, #c74a28 100%);
+        border-radius: 112px;
+      }
+
+      svg {
+        width: 336px;
+        height: 336px;
+        fill: none;
+        stroke: #fff;
+        /* viewBox 是 24 单位、渲染 336px，缩放 14 倍。
+           所以这里的数值是「24 单位下的线宽」——2 渲染出来约 28px。 */
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* 拱里那一点光要实心 */
+      .spark {
+        fill: #fff;
+        stroke: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6.4 20.2V11a5.6 5.6 0 0 1 11.2 0v9.2" />
+        <path d="M4.2 20.4h15.6" />
+        <circle class="spark" cx="12" cy="12.4" r="1.7" />
+      </svg>
+    </div>
+  </body>
+</html>

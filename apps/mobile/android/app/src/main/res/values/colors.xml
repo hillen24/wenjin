@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 ui 包的主题强调色同色，状态栏与控件着色跟着品牌走 -->
+    <color name="colorPrimary">#E8623A</color>
+    <color name="colorPrimaryDark">#0E1320</color>
+    <color name="colorAccent">#E8623A</color>
+</resources>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>viewport</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0b0d0f;
+        overflow: hidden;
+      }
+      /*
+       * Windows 的窗口有最小宽度（约 500px），headless 模式也继承这个限制，
+       * 所以 --window-size=390 时真实 CSS 视口并不等于 390 —— 页面会按 500 布局，
+       * 截图却只裁 390，于是看起来「右侧被切」。
+       *
+       * 这里用固定尺寸的 iframe 把视口钉死，截完再按 iframe 区域裁掉多余背景。
+       */
+      iframe {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 390px;
+        height: 844px;
+        border: 0;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe id="f"></iframe>
+    <script>
+      /*
+       * ?w=390&h=1500 可以把视口拧成「超长手机」——
+       * 用来一眼看完需要滚动才看得到的长页面（底部工具栏、折叠区之类），
+       * 省得为了看下半截去模拟滚动。
+       */
+      const q = new URLSearchParams(location.search);
+      const w = Number(q.get('w')) || 390;
+      const h = Number(q.get('h')) || 844;
+      const f = document.getElementById('f');
+      f.style.width = w + 'px';
+      f.style.height = h + 'px';
+      const hash = location.hash.replace('#', '') || 'me';
+      f.src = '/#' + hash;
+    </script>
+  </body>
+</html>

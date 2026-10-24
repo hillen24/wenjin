@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">问津</string>
+    <string name="title_activity_main">问津</string>
+    <string name="package_name">cn.wenjin.app</string>
+    <string name="custom_url_scheme">cn.wenjin.app</string>
+</resources>
