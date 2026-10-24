@@ -32,11 +32,29 @@ const RELS: readonly EdgeRelation[] = ['proposes', 'refines', 'inherits', 'oppos
 /** 用户星区的默认脉络名 */
 export const CUSTOM_SCHOOL = '我的星区';
 
-/** 容量上限：防一次模型抽风把 localStorage 撑爆 */
+/** 释义兜底。旧版这里 fallback 成 name，结果面板上名字下面又印一遍名字。 */
+export const NO_BRIEF = '释义待补充';
+
+/** 容量上限：防一次模型抽风把 localStorage 撑爆（只数用户自己加的，内置不算） */
 export const MAX_CUSTOM_NODES = 150;
 export const MAX_CUSTOM_EDGES = 400;
 
+/** 一次入库的节点上限。提示词里让模型控制在 5 个，这里兜底截断。 */
+export const MAX_NODES_PER_BATCH = 8;
+export const MAX_EDGES_PER_BATCH = 16;
+
+/** 喂给模型的既有节点清单上限：清单太长会把 prompt 撑爆，也更容易让模型乱连 */
+export const PROMPT_NODE_LIMIT = 60;
+
 const ID_RE = /^[a-z0-9_-]{2,40}$/;
+
+/** validateIncoming 的可选上下文 */
+export interface ValidateOptions {
+  /** 图里已有的边，用于去重（同一对节点不重复连线，否则图上会出现双线） */
+  existingEdges?: ReadonlyArray<readonly unknown[]>;
+  /** 「名字 → id」兜底表：模型经常拿中文名当边的端点，查得到就别丢 */
+  alias?: ReadonlyMap<string, string>;
+}
 
 /* ============================================================
  * id 生成
@@ -102,6 +120,7 @@ export function validateIncoming(
   incoming: GraphFragment,
   existingIds: ReadonlySet<string>,
   existingNames: ReadonlySet<string> = new Set(),
+  opts: ValidateOptions = {},
 ): ValidateResult {
   const warnings: string[] = [];
 
@@ -115,7 +134,8 @@ export function validateIncoming(
   const taken = new Set(existingIds);
   const nodes: StarNode[] = [];
   const newIds = new Set<string>();
-  const nameOf = new Map<string, string>(); // id → name，给边预览用
+  /** 本批新节点的「名字 → id」，边端点是名字时先查这里 */
+  const alias = new Map<string, string>(opts.alias ?? []);
 
   for (const raw of incoming.nodes) {
     if (!raw || typeof raw !== 'object') {
@@ -128,14 +148,18 @@ export function validateIncoming(
       continue;
     }
     if (existingNames.has(name)) {
-      warnings.push(`「${name}」已存在，跳过重复节点`);
+      warnings.push(`「${name}」已在星图里，跳过重复节点`);
       continue;
+    }
+    if (nodes.length >= MAX_NODES_PER_BATCH) {
+      warnings.push(`一次最多加 ${MAX_NODES_PER_BATCH} 个节点，多余的已略过`);
+      break;
     }
     if (name.length > 30) {
       warnings.push(`「${name.slice(0, 12)}…」名字超长，已截断`);
     }
     const kind = KINDS.includes(raw.kind as NodeKind) ? (raw.kind as NodeKind) : 'concept';
-    const brief = String(raw.brief ?? '').trim() || name;
+    const brief = String(raw.brief ?? '').trim() || NO_BRIEF;
     const school = String(raw.school ?? '').trim() || CUSTOM_SCHOOL;
     const src = String(raw.src ?? '').trim() || '用户添加';
 
@@ -145,35 +169,75 @@ export function validateIncoming(
     }
 
     newIds.add(id);
-    nameOf.set(id, name.slice(0, 30));
-    nodes.push({ id, name: name.slice(0, 30), kind, school: school.slice(0, 20), brief: brief.slice(0, 200), src: src.slice(0, 60), doc: null });
+    alias.set(name, id);
+    // 截短后的名字也认，模型偶尔会给带别名的长名
+    alias.set(name.slice(0, 30), id);
+    nodes.push({
+      id,
+      name: name.slice(0, 30),
+      kind,
+      school: school.slice(0, 20),
+      brief: brief.slice(0, 200),
+      src: src.slice(0, 60),
+      doc: null,
+    });
   }
 
   if (nodes.length === 0) {
-    return { ok: false, reason: '校验后一个节点都不剩（名字全空？）' };
-  }
-  if (taken.size + nodes.length > MAX_CUSTOM_NODES) {
-    return { ok: false, reason: `自定义节点已达上限（${MAX_CUSTOM_NODES}）` };
+    return { ok: false, reason: '校验后一个节点都不剩（名字全空或全是重复？）' };
   }
 
   const validIds: ReadonlySet<string> = new Set([...existingIds, ...newIds]);
+  const nameOf = new Map<string, string>();
+  for (const n of nodes) nameOf.set(n.id, n.name);
+
+  /** 端点解析：先当 id，不像 id 再当名字查表 */
+  const resolve = (raw: string): string => {
+    const v = raw.trim();
+    if (validIds.has(v)) return v;
+    const hit = alias.get(v);
+    if (hit && validIds.has(hit)) return hit;
+    return '';
+  };
+
+  // 已有边的「无序对」集合：同一对节点之间不再连第二条，否则画布上叠双线
+  const takenPairs = new Set<string>();
+  const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  for (const e of opts.existingEdges ?? []) {
+    const a = String(e?.[0] ?? '');
+    const b = String(e?.[1] ?? '');
+    if (a && b) takenPairs.add(pairKey(a, b));
+  }
+
   const edges: StarEdge[] = [];
   const seenEdges = new Set<string>();
 
   for (const raw of incoming.edges) {
+    if (edges.length >= MAX_EDGES_PER_BATCH) {
+      warnings.push(`一次最多加 ${MAX_EDGES_PER_BATCH} 条关系，多余的已略过`);
+      break;
+    }
     const f = edgeFields(raw);
     if (!f) {
       warnings.push('跳过一条格式不认识的边');
       continue;
     }
-    const from = f.from;
-    const to = f.to;
-    if (!validIds.has(from) || !validIds.has(to)) {
-      warnings.push(`跳过一条端点未知的边（${from || '?'} → ${to || '?'}）`);
+    let from = resolve(f.from);
+    let to = resolve(f.to);
+    // 名字在 alias 里解析成同一个 id 的情况（自环）也要拦
+    if (!from || !to) {
+      warnings.push(`跳过一条端点未知的边（${f.from || '?'} → ${f.to || '?'}）`);
       continue;
     }
     if (from === to) {
-      warnings.push('跳过一条自环边');
+      warnings.push(`跳过一条自己连自己的边（${nameOf.get(from) ?? from}）`);
+      continue;
+    }
+    const pk = pairKey(from, to);
+    if (takenPairs.has(pk)) {
+      warnings.push(
+        `「${nameOf.get(from) ?? from}」和「${nameOf.get(to) ?? to}」之间已经有关系了，跳过重复连线`,
+      );
       continue;
     }
     const rel = RELS.includes(f.rel as EdgeRelation) ? (f.rel as EdgeRelation) : 'refines';
@@ -183,11 +247,8 @@ export function validateIncoming(
     const key = `${from}>${to}>${rel}`;
     if (seenEdges.has(key)) continue;
     seenEdges.add(key);
+    takenPairs.add(pk);
     edges.push([from, to, rel, f.label.slice(0, 40)]);
-  }
-
-  if (taken.size + nodes.length + edges.length > MAX_CUSTOM_NODES + MAX_CUSTOM_EDGES) {
-    return { ok: false, reason: '内容超出容量上限' };
   }
 
   return { ok: true, nodes, edges, warnings };
@@ -201,10 +262,13 @@ export function validateIncoming(
  * 构建「星图共建」的 system prompt。
  *
  * 关键约束写死在提示里：只输出 JSON、id 规则、复用既有节点 id。
- * existingNodes 传内置 + 已有自定义的 id/name/kind，让模型把新内容挂上去。
+ * existingNodes 传内置 + 已有自定义的 id/name/kind，让模型把新内容挂上去；
+ * 清单会截断到 PROMPT_NODE_LIMIT 条，防止 prompt 把上下文吃光。
  */
 export function buildAiPrompt(existingNodes: ReadonlyArray<Pick<StarNode, 'id' | 'name' | 'kind'>>): string {
-  const list = existingNodes.map((n) => `${n.id}(${n.name},${n.kind})`).join('、');
+  const all = existingNodes.map((n) => `${n.id}(${n.name},${n.kind})`);
+  const shown = all.slice(0, PROMPT_NODE_LIMIT);
+  const truncated = all.length > shown.length ? `（清单较长，仅列出前 ${shown.length} 个）` : '';
   return [
     '你是「问津」哲学星图的结构化编辑器。用户会用自然语言描述想加入的思想概念/人物/流派/方法，',
     '你的唯一任务是把描述规范化成星图片段。必须只输出一个 JSON 对象，不要输出任何其他文字、不要用 markdown 代码块。',
@@ -216,9 +280,10 @@ export function buildAiPrompt(existingNodes: ReadonlyArray<Pick<StarNode, 'id' |
     '规则：',
     '1. id 只用小写字母数字下划线，2-40 字符；name 用中文，30 字以内。',
     '2. 新节点要跟已有节点连边时，直接用下面给的既有 id，不要新建重复概念。',
+    '   如果概念在清单里已存在，就不要再建，直接拿它的 id 连边。',
     '3. rel 四选一：proposes=提出，refines=修正，inherits=继承，opposes=反对。每条边给一句 label。',
-    '4. 一次最多 5 个新节点、8 条边。brief 必须有实质内容，不要空话。',
-    `5. 既有节点清单（id(名字,类型)）：${list}`,
+    `4. 一次最多 5 个新节点、8 条边。brief 必须有实质内容，不要空话、不要照抄 name。`,
+    `5. 既有节点清单${truncated}（id(名字,类型)）：${shown.join('、')}`,
   ].join('\n');
 }
 
@@ -237,6 +302,7 @@ export function parseAiGraph(
   text: string,
   existingIds: ReadonlySet<string>,
   existingNames: ReadonlySet<string> = new Set(),
+  opts: ValidateOptions = {},
 ): ParseAiResult {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
@@ -257,15 +323,15 @@ export function parseAiGraph(
   if (!Array.isArray(obj.nodes)) {
     return { ok: false, reason: '模型输出缺少 nodes 数组' };
   }
-  const r = validateIncoming(
+  return validateIncoming(
     {
       nodes: obj.nodes as Array<Partial<StarNode>>,
       edges: (Array.isArray(obj.edges) ? obj.edges : []) as GraphFragment['edges'],
     },
     existingIds,
     existingNames,
+    opts,
   );
-  return r;
 }
 
 /* ============================================================
@@ -309,7 +375,7 @@ export class StarGraphStore {
     this.kv = kv;
   }
 
-  /** 当前自定义子图（带缓存；测试里直接改 localStorage 后可调 resetCache） */
+  /** 当前自定义子图（带缓存；外部直接改了 localStorage 后可调 resetCache） */
   load(): CustomGraph {
     if (this.cache) return this.cache;
     this.cache = sanitizeGraph(this.kv.readJSON<unknown>(STORAGE_KEYS.customGraph, null));
@@ -322,17 +388,29 @@ export class StarGraphStore {
 
   /**
    * 新增一批（先校验，全部合法才落盘）。
-   * builtinNodes 传内置节点（id+name），用于 id 冲突检测与同名去重。
+   *
+   * builtin 传内置节点/边（用于 id 冲突检测、同名去重、连边去重）。
+   * 容量上限只数「用户自己加的」——旧版把内置节点也算进去，内置一多就误报超限。
    */
   add(
     incoming: GraphFragment,
-    builtinNodes: ReadonlyArray<Pick<StarNode, 'id' | 'name'>> = [],
+    builtin: { nodes?: ReadonlyArray<Pick<StarNode, 'id' | 'name'>>; edges?: ReadonlyArray<StarEdge> } = {},
   ): { ok: true; graph: CustomGraph; warnings: string[] } | { ok: false; reason: string } {
     const cur = this.load();
+    const builtinNodes = builtin.nodes ?? [];
     const existingIds = new Set([...builtinNodes.map((n) => n.id), ...cur.nodes.map((n) => n.id)]);
     const existingNames = new Set([...builtinNodes.map((n) => n.name), ...cur.nodes.map((n) => n.name)]);
-    const r = validateIncoming(incoming, existingIds, existingNames);
+    const existingEdges: StarEdge[] = [...(builtin.edges ?? []), ...cur.edges];
+
+    const r = validateIncoming(incoming, existingIds, existingNames, { existingEdges });
     if (!r.ok) return r;
+
+    if (cur.nodes.length + r.nodes.length > MAX_CUSTOM_NODES) {
+      return { ok: false, reason: `自定义节点已达上限（${MAX_CUSTOM_NODES}），先清理一些再加` };
+    }
+    if (cur.edges.length + r.edges.length > MAX_CUSTOM_EDGES) {
+      return { ok: false, reason: `自定义关系已达上限（${MAX_CUSTOM_EDGES}）` };
+    }
 
     const next: CustomGraph = {
       nodes: [...cur.nodes, ...r.nodes],
@@ -350,6 +428,14 @@ export class StarGraphStore {
       nodes: cur.nodes.filter((n) => n.id !== id),
       edges: cur.edges.filter(([a, b]) => a !== id && b !== id),
     };
+    this.kv.writeJSON(STORAGE_KEYS.customGraph, next);
+    this.cache = next;
+    return next;
+  }
+
+  /** 清空「我的星区」。用户加错一堆时得有后悔药。 */
+  clear(): CustomGraph {
+    const next: CustomGraph = { nodes: [], edges: [] };
     this.kv.writeJSON(STORAGE_KEYS.customGraph, next);
     this.cache = next;
     return next;

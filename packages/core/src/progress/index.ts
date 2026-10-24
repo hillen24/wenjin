@@ -43,6 +43,21 @@ export class ProgressStore {
     return added;
   }
 
+  /**
+   * 取消点亮。
+   *
+   * 星图共建里删掉一个自定义节点时，如果不同步清掉它的点亮记录，
+   * 「已点亮 N / M」的分子就会残留一个不存在的 id，百分比能飘到 100% 以上。
+   */
+  unlight(ids: readonly string[]): void {
+    const drop = new Set(ids);
+    const next = this.state.filter((id) => !drop.has(id));
+    if (next.length === this.state.length) return;
+    this.state = next;
+    this.persist();
+    this.emit();
+  }
+
   reset(): void {
     this.state = [...INITIAL_LIT_NODES];
     this.persist();

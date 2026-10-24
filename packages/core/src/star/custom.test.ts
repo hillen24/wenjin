@@ -6,7 +6,16 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { StarGraphStore, buildAiPrompt, nameToId, parseAiGraph, validateIncoming } from './custom';
+import {
+  MAX_NODES_PER_BATCH,
+  NO_BRIEF,
+  PROMPT_NODE_LIMIT,
+  StarGraphStore,
+  buildAiPrompt,
+  nameToId,
+  parseAiGraph,
+  validateIncoming,
+} from './custom';
 import { KeyValueStore, MemoryStorage, STORAGE_KEYS } from '../storage';
 import { STAR_NODES } from '../data/star-map';
 import type { StarNode } from '../types';
@@ -138,7 +147,7 @@ describe('StarGraphStore', () => {
   it('入库 → 重开实例仍能读到（localStorage 持久化）', () => {
     const kv = new KeyValueStore(new MemoryStorage());
     const s1 = new StarGraphStore(kv);
-    const r = s1.add({ nodes: [{ ...GOOD_NODE }], edges: [] }, STAR_NODES);
+    const r = s1.add({ nodes: [{ ...GOOD_NODE }], edges: [] }, { nodes: STAR_NODES });
     expect(r.ok).toBe(true);
 
     const s2 = new StarGraphStore(kv);
@@ -147,7 +156,7 @@ describe('StarGraphStore', () => {
 
   it('合并视图：内置在前、自定义在后', () => {
     const s = store();
-    s.add({ nodes: [{ ...GOOD_NODE, id: 'ship_t' }], edges: [] }, STAR_NODES);
+    s.add({ nodes: [{ ...GOOD_NODE, id: 'ship_t' }], edges: [] }, { nodes: STAR_NODES });
     const m = s.merged(STAR_NODES, []);
     expect(m.nodes[0]!.id).toBe(STAR_NODES[0]!.id);
     expect(m.nodes.at(-1)!.id).toBe('ship_t');
@@ -163,7 +172,7 @@ describe('StarGraphStore', () => {
         ],
         edges: [{ from: 'ship_t', to: 'ident_t', rel: 'refines', label: '' }],
       },
-      STAR_NODES,
+      { nodes: STAR_NODES },
     );
     const g = s.removeNode('ship_t');
     expect(g.nodes.map((n) => n.id)).toEqual(['ident_t']);
@@ -180,8 +189,8 @@ describe('StarGraphStore', () => {
 
   it('同一内容入库两次不产生重复节点', () => {
     const s = store();
-    s.add({ nodes: [{ ...GOOD_NODE }], edges: [] }, STAR_NODES);
-    s.add({ nodes: [{ ...GOOD_NODE }], edges: [] }, STAR_NODES);
+    s.add({ nodes: [{ ...GOOD_NODE }], edges: [] }, { nodes: STAR_NODES });
+    s.add({ nodes: [{ ...GOOD_NODE }], edges: [] }, { nodes: STAR_NODES });
     expect(s.load().nodes).toHaveLength(1);
   });
 });
@@ -192,5 +201,104 @@ describe('buildAiPrompt', () => {
     expect(p).toContain('stoic(斯多葛学派,school)');
     expect(p).toContain('proposes');
     expect(p).toContain('JSON');
+  });
+
+  it('节点清单超长时截断，不让 prompt 吃掉整个上下文', () => {
+    const many = Array.from({ length: PROMPT_NODE_LIMIT + 40 }, (_, i) => ({
+      id: `n${i}`,
+      name: `节点${i}`,
+      kind: 'concept' as const,
+    }));
+    const p = buildAiPrompt(many);
+    expect(p).toContain(`仅列出前 ${PROMPT_NODE_LIMIT} 个`);
+    expect(p).not.toContain(`n${PROMPT_NODE_LIMIT + 39}(`);
+  });
+});
+
+/* ============================================================
+ * 3.5.1 修掉的几个坑，逐条钉住
+ * ============================================================ */
+
+describe('连边去重', () => {
+  it('同一对节点之间不重复连线（否则画布上叠双线）', () => {
+    const r = validateIncoming(
+      {
+        nodes: [{ ...GOOD_NODE, id: 'ship_d' }],
+        edges: [
+          { from: 'ship_d', to: 'stoic', rel: 'refines', label: 'a' },
+          { from: 'stoic', to: 'ship_d', rel: 'opposes', label: 'b' },
+        ],
+      },
+      BUILTIN_IDS,
+      new Set(),
+      { existingEdges: [] },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // 两条互为反向、指向同一对节点：第二条该被拦
+    expect(r.edges).toHaveLength(1);
+  });
+
+  it('已存在的边不再建第二次', () => {
+    const r = validateIncoming(
+      { nodes: [{ ...GOOD_NODE, id: 'ship_e' }], edges: [{ from: 'ship_e', to: 'stoic', rel: 'refines' }] },
+      BUILTIN_IDS,
+      new Set(),
+      { existingEdges: [['ship_e', 'stoic', 'opposes', '']] },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.edges).toHaveLength(0);
+    expect(r.warnings.join()).toContain('已经有关系');
+  });
+});
+
+describe('边端点的名字兜底', () => {
+  it('模型拿中文名当端点时也能接上，而不是整条边被丢', () => {
+    const r = validateIncoming(
+      { nodes: [GOOD_NODE], edges: [{ from: '忒修斯之船', to: 'stoic', rel: 'refines' }] },
+      BUILTIN_IDS,
+      new Set(),
+      { existingEdges: [], alias: new Map([['stoic', 'stoic']]) },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.edges).toHaveLength(1);
+    expect(r.edges[0]![0]).toBe(r.nodes[0]!.id);
+  });
+});
+
+describe('批量与容量', () => {
+  it('单批节点数被截断（模型抽风也不会一次塞 200 个）', () => {
+    const nodes = Array.from({ length: 20 }, (_, i) => ({ name: `概念${i}` }));
+    const r = validateIncoming({ nodes, edges: [] }, BUILTIN_IDS);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.nodes).toHaveLength(MAX_NODES_PER_BATCH);
+  });
+
+  it('容量上限只数用户自己加的，内置节点再多也不误报', () => {
+    const kv = new KeyValueStore(new MemoryStorage());
+    const s = new StarGraphStore(kv);
+    // 内置节点本身就有几十个，旧版把它算进限额会直接拒绝入库
+    const r = s.add({ nodes: [{ ...GOOD_NODE }], edges: [] }, { nodes: STAR_NODES });
+    expect(r.ok).toBe(true);
+  });
+
+  it('清空我的星区', () => {
+    const s = store();
+    s.add({ nodes: [{ ...GOOD_NODE }], edges: [] }, { nodes: STAR_NODES });
+    expect(s.clear().nodes).toHaveLength(0);
+    expect(s.load().nodes).toHaveLength(0);
+  });
+});
+
+describe('释义兜底', () => {
+  it('没给 brief 时不会把名字当释义印第二遍', () => {
+    const r = validateIncoming({ nodes: [{ name: '无名概念' }], edges: [] }, BUILTIN_IDS);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.nodes[0]!.brief).toBe(NO_BRIEF);
+    expect(r.nodes[0]!.brief).not.toBe('无名概念');
   });
 });

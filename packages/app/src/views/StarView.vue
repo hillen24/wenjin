@@ -132,7 +132,33 @@ const selectedRels = computed(() =>
 
 const blind = computed(() => blindSpots(allNodes.value, litIds.value));
 
-const litPct = computed(() => Math.round((litIds.value.length / allNodes.value.length) * 100));
+/**
+ * 只统计「图里真实存在」的点亮。
+ *
+ * 删掉一个自定义节点时 litIds 里的记录也会同步清掉，但局域网同步、手工改数据
+ * 都可能留下对不上号的 id —— 这里再兜一层，免得 HUD 飘出「已点亮 30 / 28」。
+ */
+const litCount = computed(
+  () => litIds.value.filter((id) => allNodes.value.some((n) => n.id === id)).length,
+);
+
+const litPct = computed(() =>
+  allNodes.value.length ? Math.round((litCount.value / allNodes.value.length) * 100) : 0,
+);
+
+/**
+ * 手动表单里「连到」的下拉按脉络分组。
+ * 30 多个名字平铺在一个 select 里根本找不着人，分组后至少知道往哪个星区翻。
+ */
+const groupedNodes = computed(() => {
+  const map = new Map<string, StarNode[]>();
+  for (const n of allNodes.value) {
+    const arr = map.get(n.school) ?? [];
+    arr.push(n);
+    map.set(n.school, arr);
+  }
+  return [...map.entries()].map(([school, list]) => ({ school, list }));
+});
 
 /* ---------------- 帧循环 ---------------- */
 
@@ -381,17 +407,29 @@ function doRelayout(): void {
   view.value = fitView(BASE_VIEW);
 }
 
-function lightUp(id: string): void {
-  if (!litIds.value.includes(id)) litIds.value = [...litIds.value, id];
+/**
+ * 点亮 / 取消点亮。
+ *
+ * 3.5.1 修：旧版这里只改内存里的 ref，从不落盘 —— 界面上看着点亮了，
+ * 刷新一次就回到初始值。真正的写入必须走 core.progress。
+ */
+function toggleLit(id: string): void {
+  if (litIds.value.includes(id)) {
+    core.progress.unlight([id]);
+    nav.toast('已取消点亮');
+  } else {
+    core.progress.light([id]);
+    nav.toast('已点亮 · 记入你的进度');
+  }
 }
 
 /* ============================================================
- * 星图共建（3.5.0）
+ * 星图共建
  *
  * 两条路进同一个校验漏斗（validateIncoming）：
- * - AI 路：用户用自然语言描述 → 模型输出 JSON → parseAiGraph 规范化 → 预览
- * - 手动路：表单直接填
- * 预览确认后才落 core.star。模型说错话最多浪费一次生成，污染不进图。
+ * - AI 路：用自然语言描述 → 模型输出 JSON → parseAiGraph 规范化 → 预览 → 入库
+ * - 手动路：表单填一个 → 直接入库
+ * 模型说错话最多浪费一次生成，污染不进图；用户还能在预览里逐条剔除。
  * ============================================================ */
 
 const builderOpen = ref(false);
@@ -399,51 +437,113 @@ const builderMode = ref<'ai' | 'manual'>('ai');
 
 const aiInput = ref('');
 const aiBusy = ref(false);
+/** 红字错误（阻断操作） */
 const aiError = ref('');
-const preview = ref<{ nodes: StarNode[]; edges: StarEdge[]; warnings: string[] } | null>(null);
+/** 黄字提醒（校验漏斗的 warnings，不阻断） */
+const notice = ref<string[]>([]);
+const preview = ref<{ nodes: StarNode[]; edges: StarEdge[] } | null>(null);
 
 const aiLive = computed(() => core.ai.isLive());
 
+/**
+ * 生成请求代号。
+ *
+ * 3.5.1 修：AI 请求是异步的，旧版关掉弹窗后返回仍会往 preview 里写，
+ * 下次打开就凭空冒出上一次的结果；连点两次「生成预览」也会互相覆盖。
+ * 每次发起 +1，回来时对不上号就直接丢弃。
+ */
+let genToken = 0;
+
 /** 手动表单 */
-const form = ref({
+const emptyForm = (): {
+  name: string;
+  kind: NodeKind;
+  school: string;
+  brief: string;
+  src: string;
+  toId: string;
+  rel: EdgeRelation;
+  label: string;
+} => ({
   name: '',
-  kind: 'concept' as NodeKind,
+  kind: 'concept',
   school: '',
   brief: '',
   src: '',
   toId: '',
-  rel: 'refines' as EdgeRelation,
+  rel: 'refines',
   label: '',
 });
+
+const form = ref(emptyForm());
+
+/** 清空「我的星区」的二次确认（点一下变成确认按钮，再点才真删） */
+const confirmClear = ref(false);
 
 function openBuilder(): void {
   builderOpen.value = true;
   aiError.value = '';
+  notice.value = [];
+  preview.value = null;
+  confirmClear.value = false;
+  // 没接 AI 就别让用户对着一个按不动的按钮发呆
+  builderMode.value = aiLive.value ? 'ai' : 'manual';
 }
 
 function closeBuilder(): void {
   builderOpen.value = false;
   preview.value = null;
   aiError.value = '';
+  notice.value = [];
   aiBusy.value = false;
+  confirmClear.value = false;
+}
+
+function switchMode(mode: 'ai' | 'manual'): void {
+  if (builderMode.value === mode) return;
+  builderMode.value = mode;
+  // 换路要清掉上一路的产物，否则手动填完切到 AI 会看到手动的预览
+  preview.value = null;
+  aiError.value = '';
+  notice.value = [];
+}
+
+function nodeName(id: string): string {
+  return allNodes.value.find((n) => n.id === id)?.name ?? id;
+}
+
+/** 预览里的边可能连到「还没入库的新节点」，先在本批里找名字，不然会印出一串 u_xxx */
+function previewName(id: string): string {
+  return preview.value?.nodes.find((n) => n.id === id)?.name ?? nodeName(id);
 }
 
 /** AI 生成 → 规范化 → 预览 */
 async function generate(): Promise<void> {
   const text = aiInput.value.trim();
-  if (!text) return;
+  if (!text) {
+    aiError.value = '先说说你想加什么';
+    return;
+  }
   if (!core.ai.isLive()) {
     aiError.value = '还没接入 AI：先去「设置」配好模型，或改用手动填写。';
     return;
   }
+  const token = (genToken += 1);
   aiBusy.value = true;
   aiError.value = '';
+  notice.value = [];
   preview.value = null;
 
   const r = await core.ai.chat([
-    { role: 'system', content: buildAiPrompt(allNodes.value.map((n) => ({ id: n.id, name: n.name, kind: n.kind }))) },
+    {
+      role: 'system',
+      content: buildAiPrompt(allNodes.value.map((n) => ({ id: n.id, name: n.name, kind: n.kind }))),
+    },
     { role: 'user', content: text },
   ]);
+
+  // 过期请求：用户已经关了弹窗 / 重新生成过，结果作废
+  if (token !== genToken || !builderOpen.value) return;
   aiBusy.value = false;
 
   if (!r.ok) {
@@ -454,69 +554,138 @@ async function generate(): Promise<void> {
     r.reply.text,
     new Set(allNodes.value.map((n) => n.id)),
     new Set(allNodes.value.map((n) => n.name)),
+    { existingEdges: allEdges.value },
   );
   if (!parsed.ok) {
-    aiError.value = `模型输出不合格：${parsed.reason}。可以换个说法再试一次。`;
+    aiError.value = `模型输出不合格：${parsed.reason}。换个说法再试一次，或改用手动填写。`;
     return;
   }
-  preview.value = { nodes: parsed.nodes, edges: parsed.edges, warnings: parsed.warnings };
+  preview.value = { nodes: parsed.nodes, edges: parsed.edges };
+  notice.value = parsed.warnings;
 }
 
-/** 手动表单 → 规范化 → 预览（与 AI 路共用一个校验漏斗） */
-function previewManual(): void {
+/** 预览里剔除一个节点（连带它的边） */
+function dropPreviewNode(i: number): void {
+  const p = preview.value;
+  if (!p) return;
+  const id = p.nodes[i]?.id;
+  if (!id) return;
+  p.nodes.splice(i, 1);
+  const keep = p.edges.filter(([a, b]) => a !== id && b !== id);
+  p.edges.splice(0, p.edges.length, ...keep);
+  if (p.nodes.length === 0) preview.value = null;
+}
+
+/** 预览里剔除一条边 */
+function dropPreviewEdge(i: number): void {
+  preview.value?.edges.splice(i, 1);
+}
+
+/** 手动表单 → 直接入库（单节点没必要走「生成预览」两步） */
+function addManual(): void {
   const name = form.value.name.trim();
   if (!name) {
     aiError.value = '至少要有个名字';
     return;
   }
+  if (allNodes.value.some((n) => n.name === name)) {
+    aiError.value = `「${name}」已经在星图里了`;
+    return;
+  }
   aiError.value = '';
-  const taken = new Set(allNodes.value.map((n) => n.id));
-  const id = nameToId(name, taken);
-  const nodes: Array<Partial<StarNode>> = [
-    { id, name, kind: form.value.kind, school: form.value.school, brief: form.value.brief, src: form.value.src },
-  ];
+  const id = nameToId(name, new Set(allNodes.value.map((n) => n.id)));
   const edges: Array<{ from: string; to: string; rel: EdgeRelation; label: string }> = [];
   if (form.value.toId) {
-    edges.push({ from: id, to: form.value.toId, rel: form.value.rel, label: form.value.label });
+    edges.push({ from: id, to: form.value.toId, rel: form.value.rel, label: form.value.label.trim() });
   }
-  const r = parseAiGraph(
-    JSON.stringify({ nodes, edges }),
-    taken,
-    new Set(allNodes.value.map((n) => n.name)),
+  const r = core.star.add(
+    {
+      nodes: [
+        {
+          id,
+          name,
+          kind: form.value.kind,
+          school: form.value.school.trim(),
+          brief: form.value.brief.trim(),
+          src: form.value.src.trim(),
+        },
+      ],
+      edges,
+    },
+    { nodes: STAR_NODES, edges: STAR_EDGES },
   );
   if (!r.ok) {
     aiError.value = r.reason;
     return;
   }
-  preview.value = { nodes: r.nodes, edges: r.edges, warnings: r.warnings };
+  // 实际入库的边数可能少于填的（与已有关系重复会被拦），按落盘结果报
+  const addedEdges = r.graph.edges.length - graph.value.edges.length;
+  graph.value = r.graph;
+  form.value = emptyForm();
+  preview.value = null;
+  notice.value = r.warnings;
+  finishAdd(id, 1, addedEdges);
 }
 
 /** 预览确认 → 落库 */
 function commitPreview(): void {
-  if (!preview.value) return;
+  const p = preview.value;
+  if (!p || p.nodes.length === 0) return;
   const r = core.star.add(
-    { nodes: preview.value.nodes, edges: preview.value.edges },
-    STAR_NODES,
+    { nodes: p.nodes, edges: p.edges },
+    { nodes: STAR_NODES, edges: STAR_EDGES },
   );
   if (!r.ok) {
     aiError.value = r.reason;
-    preview.value = null;
     return;
   }
+  const firstId = p.nodes[0]!.id;
+  const nodeCount = p.nodes.length;
+  const edgeCount = p.edges.length;
+  const warnings = [...r.warnings];
   graph.value = r.graph;
-  if (r.warnings.length) nav.toast(r.warnings[0]!);
-  const added = preview.value.nodes.length;
-  const addedEdges = preview.value.edges.length;
-  nav.toast(`已点亮星图：+${added} 节点 · +${addedEdges} 关系`);
   closeBuilder();
+  finishAdd(firstId, nodeCount, edgeCount);
+  /* toast 一次只留一条，所以提醒必须合并成一句话再发，
+     否则「已加入」会把「已加入」前面的提醒直接顶掉（旧版就丢在这儿） */
+  if (warnings.length) {
+    nav.toast(warnings.length === 1 ? warnings[0]! : `${warnings[0]!} 等 ${warnings.length} 条提醒`);
+  }
+}
+
+/** 入库后的收尾：选中新节点让人看见它在哪，并给一条不互相覆盖的提示 */
+function finishAdd(firstId: string, nodeCount: number, edgeCount: number): void {
+  const parts = [`+${nodeCount} 节点`];
+  if (edgeCount > 0) parts.push(`+${edgeCount} 关系`);
+  selectedId.value = firstId;
+  nav.toast(`已加入星图 · ${parts.join(' · ')}`);
+}
+
+/** 清空「我的星区」 */
+function clearMine(): void {
+  if (!confirmClear.value) {
+    confirmClear.value = true;
+    return;
+  }
+  const n = graph.value.nodes.length;
+  const ids = graph.value.nodes.map((x) => x.id);
+  graph.value = core.star.clear();
+  core.progress.unlight(ids);
+  if (selectedId.value && ids.includes(selectedId.value)) selectedId.value = null;
+  confirmClear.value = false;
+  preview.value = null;
+  nav.toast(`已清空我的星区（${n} 个节点）`);
 }
 
 /** 移除自定义节点（内置节点不可删） */
 function removeCustom(id: string): void {
   if (!customIds.value.has(id)) return;
+  const name = nodeName(id);
   graph.value = core.star.removeNode(id);
-  selectedId.value = null;
-  nav.toast('已从星图移除');
+  // 点亮记录不同步清，HUD 的分子就会留一个不存在的 id
+  core.progress.unlight([id]);
+  if (selectedId.value === id) selectedId.value = null;
+  nav.toast(`已移除「${name}」`);
 }
 
 /** 图变化后：新增节点补刚体、删除节点清刚体，并重扫 DOM 引用 */
@@ -667,7 +836,7 @@ onBeforeUnmount(() => {
       </svg>
 
       <div class="hud">
-        <span>已点亮 {{ litIds.length }} / {{ allNodes.length }} · {{ litPct }}%</span>
+        <span>已点亮 {{ litCount }} / {{ allNodes.length }} · {{ litPct }}%</span>
         <span v-if="narrow" class="hud-tip">点节点看名字</span>
         <button type="button" @click="doRelayout">
           <Icon name="i-refresh" :size="13" />
@@ -676,6 +845,7 @@ onBeforeUnmount(() => {
         <button type="button" @click="openBuilder">
           <Icon name="i-plus" :size="13" />
           共建星图
+          <b v-if="graph.nodes.length" class="badge">{{ graph.nodes.length }}</b>
         </button>
       </div>
     </div>
@@ -703,13 +873,8 @@ onBeforeUnmount(() => {
         <p class="src">出处：{{ selected.src }}</p>
 
         <div class="btn-row">
-          <button
-            v-if="!litIds.includes(selected.id)"
-            type="button"
-            class="btn"
-            @click="lightUp(selected.id)"
-          >
-            点亮此节点
+          <button type="button" class="btn" @click="toggleLit(selected.id)">
+            {{ litIds.includes(selected.id) ? '取消点亮' : '点亮此节点' }}
           </button>
           <button
             v-if="customIds.has(selected.id)"
@@ -760,10 +925,11 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="mode-tabs">
-          <button type="button" :class="{ on: builderMode === 'ai' }" @click="builderMode = 'ai'">
+          <button type="button" :class="{ on: builderMode === 'ai' }" @click="switchMode('ai')">
             AI 帮我建
+            <b v-if="!aiLive" class="off">未接入</b>
           </button>
-          <button type="button" :class="{ on: builderMode === 'manual' }" @click="builderMode = 'manual'">
+          <button type="button" :class="{ on: builderMode === 'manual' }" @click="switchMode('manual')">
             手动填写
           </button>
         </div>
@@ -782,7 +948,10 @@ onBeforeUnmount(() => {
             <button type="button" class="btn" :disabled="aiBusy || !aiInput.trim()" @click="generate">
               {{ aiBusy ? '正在规范化…' : '生成预览' }}
             </button>
-            <span v-if="!aiLive" class="warn">未接入 AI · 可先去设置配置，或改用手动填写</span>
+            <template v-if="!aiLive">
+              <span class="warn">未接入 AI</span>
+              <button type="button" class="link" @click="nav.go('set')">去设置</button>
+            </template>
           </div>
         </template>
 
@@ -805,7 +974,9 @@ onBeforeUnmount(() => {
             <label>连到
               <select v-model="form.toId">
                 <option value="">（暂不连边）</option>
-                <option v-for="n in allNodes" :key="n.id" :value="n.id">{{ n.name }}</option>
+                <optgroup v-for="g in groupedNodes" :key="g.school" :label="g.school">
+                  <option v-for="n in g.list" :key="n.id" :value="n.id">{{ n.name }}</option>
+                </optgroup>
               </select>
             </label>
             <label>关系
@@ -819,33 +990,52 @@ onBeforeUnmount(() => {
             <label class="grow">说明<input v-model="form.label" maxlength="40" placeholder="一句话说明这层关系" :disabled="!form.toId" /></label>
           </div>
           <div class="act-row">
-            <button type="button" class="btn" @click="previewManual">生成预览</button>
+            <button type="button" class="btn" :disabled="!form.name.trim()" @click="addManual">
+              加入星图
+            </button>
+            <span class="warn">填好直接入库，不用再点确认</span>
           </div>
         </template>
 
         <p v-if="aiError" class="err">{{ aiError }}</p>
 
-        <!-- 预览：确认才入库 -->
+        <template v-if="notice.length">
+          <p v-for="(w, i) in notice" :key="`w${i}`" class="warn">⚠ {{ w }}</p>
+        </template>
+
+        <!-- 预览：可以逐条剔除，确认才入库 -->
         <template v-if="preview">
           <div class="preview">
-            <h4>预览 · 确认后入库</h4>
-            <div v-for="n in preview.nodes" :key="n.id" class="pv-node">
-              <b>{{ n.name }}</b>
-              <span class="pv-meta">{{ KIND_LABEL[n.kind] }} · {{ n.school }}</span>
+            <h4>预览 · 不合适的可以剔掉，确认后才入库</h4>
+            <div v-for="(n, i) in preview.nodes" :key="n.id" class="pv-node">
+              <div class="pv-top">
+                <b>{{ n.name }}</b>
+                <span class="pv-meta">{{ KIND_LABEL[n.kind] }} · {{ n.school }}</span>
+                <button type="button" class="pv-del" title="不要这个" @click="dropPreviewNode(i)">×</button>
+              </div>
               <p>{{ n.brief }}</p>
             </div>
             <div v-for="(e, i) in preview.edges" :key="`pe${i}`" class="pv-edge">
-              {{ allNodes.find((n) => n.id === e[0])?.name ?? e[0] }}
-              — {{ RELATION_NAME[e[2]] }} →
-              {{ allNodes.find((n) => n.id === e[1])?.name ?? e[1] }}
+              <span>{{ previewName(e[0]) }} — {{ RELATION_NAME[e[2]] }} → {{ previewName(e[1]) }}</span>
               <em v-if="e[3]">（{{ e[3] }}）</em>
+              <button type="button" class="pv-del" title="不要这条" @click="dropPreviewEdge(i)">×</button>
             </div>
-            <p v-for="(w, i) in preview.warnings" :key="`w${i}`" class="warn">⚠ {{ w }}</p>
-            <button type="button" class="btn" @click="commitPreview">
-              入库（{{ preview.nodes.length }} 节点 · {{ preview.edges.length }} 关系）
-            </button>
+            <div class="act-row">
+              <button type="button" class="btn" @click="commitPreview">
+                入库（{{ preview.nodes.length }} 节点 · {{ preview.edges.length }} 关系）
+              </button>
+              <button type="button" class="link" @click="preview = null">放弃这次结果</button>
+            </div>
           </div>
         </template>
+
+        <!-- 我的星区管理 -->
+        <div v-if="graph.nodes.length" class="mine-row">
+          <span>我的星区已加 {{ graph.nodes.length }} 个节点 · {{ graph.edges.length }} 条关系</span>
+          <button type="button" class="link danger" :class="{ armed: confirmClear }" @click="clearMine">
+            {{ confirmClear ? '再点一次确认清空' : '清空' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1468,11 +1658,92 @@ label.full {
   letter-spacing: 0.04em;
 }
 
+/* HUD 上「共建星图」按钮的角标：我加了几个节点，一眼可见 */
+.badge {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* 文字按钮：去设置 / 放弃预览 / 清空，都是次要动作，别跟主按钮抢 */
+.link {
+  padding: 4px 2px;
+  font-size: 12px;
+  color: var(--ink3);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link:hover {
+  color: var(--ink);
+}
+
+.link.danger {
+  color: var(--rose, #b0483f);
+}
+
+/* 二次确认：点一次变成这句红字，再点才真清空 */
+.link.danger.armed {
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.mode-tabs .off {
+  margin-left: 5px;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
 .pv-node {
   padding: 9px 11px;
   border-radius: var(--radius-sm, 8px);
   background: var(--field);
   font-size: 12.5px;
+}
+
+.pv-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pv-del {
+  margin-left: auto;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink3);
+}
+
+.pv-del:hover {
+  background: var(--card-hi);
+  color: var(--rose, #b0483f);
+}
+
+.mine-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--ink3);
+}
+
+.mine-row .link {
+  margin-left: auto;
 }
 
 .pv-node b {
@@ -1493,6 +1764,9 @@ label.full {
 }
 
 .pv-edge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 11px;
   font-size: 12px;
   color: var(--ink2);
