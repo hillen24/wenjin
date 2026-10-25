@@ -9,9 +9,9 @@
  * 离线时用预置问答（关键词命中），界面上会标「预置」，不假装是真模型。
  */
 
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 import { Icon } from '@wenjin/ui';
-import { PHIL_GRADIENTS, PHILOSOPHERS, promptPhilosopher } from '@wenjin/core';
+import { PHIL_GRADIENTS, PHILOSOPHERS, promptPhilosopher, type DebateTopic } from '@wenjin/core';
 import { useCore } from '../providers';
 import { useNav } from '../nav';
 
@@ -110,6 +110,29 @@ function save(): void {
   core.materials.add('debates', rec);
   nav.toast(`已存入「我的哲学」· 与${rec.phil}的这一场`);
 }
+
+/**
+ * 文献研读提取的论题。
+ *
+ * 点一条就打开文献涉及的哲学家，并把问题预填进输入框 ——
+ * 用户只需要回车。文献没指明哲学家的（philId 解析不上），
+ * 提示先自己选一位：猜错人比空着更糟。
+ */
+const litDebates = ref<readonly DebateTopic[]>(core.debateTopics.load());
+const offDebates = core.debateTopics.subscribe((d) => {
+  litDebates.value = d;
+});
+onBeforeUnmount(offDebates);
+
+function openLitDebate(d: DebateTopic): void {
+  const hit = d.philId && PHILOSOPHERS.some((p) => p.id === d.philId);
+  if (!hit) {
+    nav.toast('这篇文献没指明哲学家，先在左边选一位');
+    return;
+  }
+  open(d.philId);
+  draft.value = d.question;
+}
 </script>
 
 <template>
@@ -197,6 +220,21 @@ function save(): void {
             <span class="nm">{{ p.name }}</span>
             <span class="era2">{{ p.era }}</span>
           </span>
+        </button>
+      </div>
+
+      <!-- 文献研读提取的论题：点一条开对应的哲学家，问题预填好 -->
+      <div v-if="litDebates.length" class="lit-debates">
+        <h5>文献论题 · {{ litDebates.length }}</h5>
+        <button
+          v-for="d in litDebates"
+          :key="d.id"
+          type="button"
+          class="ld-btn"
+          @click="openLitDebate(d)"
+        >
+          <b>{{ d.title }}</b>
+          <small>{{ d.phil || '哲学家待选' }} · {{ d.src }}</small>
         </button>
       </div>
     </div>
@@ -315,6 +353,50 @@ function save(): void {
   background: var(--bg2);
 }
 
+/* ---------- 文献论题 ---------- */
+
+.lit-debates {
+  padding: 4px 16px 20px;
+  border-left: 1px solid var(--line);
+  background: var(--bg2);
+}
+
+.lit-debates h5 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink3);
+}
+
+.ld-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 11px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--field);
+  text-align: left;
+  transition: border-color 0.16s var(--ease);
+}
+
+.ld-btn:hover {
+  border-color: var(--jade);
+}
+
+.ld-btn b {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--ink);
+}
+
+.ld-btn small {
+  font-size: 10.5px;
+  color: var(--ink3);
+}
+
 .phil-btn {
   display: flex;
   align-items: center;
@@ -403,6 +485,12 @@ function save(): void {
   .phil-btn {
     flex: none;
     width: 148px;
+  }
+
+  /* 文献论题跟在横向哲人条后面，去掉左竖线 */
+  .lit-debates {
+    padding: 4px 12px 16px;
+    border-left: 0;
   }
 }
 </style>

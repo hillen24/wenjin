@@ -1,6 +1,6 @@
 <template>
   <!--
-    图标精灵图 · 41 个 symbol（29 个界面图标 + logo 完整标/压缩标 + 10 个哲人剪影）
+    图标精灵图 · 42 个 symbol（30 个界面图标 + logo 完整标/压缩标 + 10 个哲人剪影）
 
     由 scripts/extract-sprite.py 从 v2.1 抽取，改图标请改本文件。
     用法：<Icon name="i-star" /> 或直接 <svg><use href="#i-star" /></svg>
@@ -36,6 +36,8 @@
     <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5l1.5 4.7 4.7 1.5-4.7 1.5L12 16l-1.5-4.8L5.8 9.7l4.7-1.5Z"/><path d="M18.6 15.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z"/></symbol>
     <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5L6.5 9H3v6h3.5L11 19Z"/><path d="M15.5 8.8a4.8 4.8 0 0 1 0 6.4M18.3 5.8a9 9 0 0 1 0 12.4"/></symbol>
     <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/></symbol>
+    <!-- 文献研读 Agent（3.8.0 新增）：文档 + 角标折叠 + 文本行 + 右下星芒 -->
+    <symbol id="i-agent" viewBox="0 0 24 24"><path d="M6.5 3.5h7.5l4 4v13h-11.5Z"/><path d="M13.5 3.5v4.5h4.5"/><path d="M9 12h5M9 15.5h3.5"/><path d="M17.8 15.6l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8Z"/></symbol>
     <!--
     <!--
       致知标记 ·「日出于书」（完整标）

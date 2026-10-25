@@ -16,6 +16,7 @@ export * from './sync/desktopBridge';
 
 export { default as StarView } from './views/StarView.vue';
 export { default as ReaderView } from './views/ReaderView.vue';
+export { default as IngestView } from './views/IngestView.vue';
 export { default as MethodsView } from './views/MethodsView.vue';
 export { default as GewuView } from './views/GewuView.vue';
 export { default as DebateView } from './views/DebateView.vue';

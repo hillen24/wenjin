@@ -2,16 +2,21 @@
 /**
  * 方法论库
  *
- * 11 条方法论，每条都是一个可操作的程序（SOP + 常见误用）。
+ * 内置 11 条 + 文献研读提取的自建条目，每条都是一个可操作的程序（SOP + 常见误用）。
  * 卡片上标出它能接通的三个地方：星图 / 原文 / 格物 —— 这是这张卡最有价值的部分，
  * 光有一条方法论的定义，用户读完还是不知道拿它干什么。
+ *
+ * 自建条目（m_ 前缀）来自文献 Agent：模型提议、暂存区预览、用户确认后才到这里，
+ * 所以可以整条删除——删错了重新导入文献还能再提炼出来。
  */
 
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { Icon } from '@wenjin/ui';
 import { METHOD_ENTRIES, STAR_NODES, type MethodEntry } from '@wenjin/core';
+import { useCore } from '../providers';
 import { useNav } from '../nav';
 
+const core = useCore();
 const nav = useNav();
 
 /** 概念 id → 名字。星图上显示的是名字，弹层里也不该露 id */
@@ -22,6 +27,19 @@ const nodeName = (id: string): string => NODE_NAME[id] ?? id;
 
 /** 当前展开详情的条目 */
 const opened = ref<MethodEntry | null>(null);
+
+/** 删除自建条目的二次确认：按过一次之后按钮进入 armed 态，3 秒内再按才真删 */
+const delArmed = ref(false);
+let delTimer = 0;
+
+/** 文献提取的自建方法（m_ 前缀 id），跟着 store 订阅实时刷新 */
+const custom = ref<readonly MethodEntry[]>(core.methods.load());
+const offCustom = core.methods.subscribe((m) => {
+  custom.value = m;
+});
+onBeforeUnmount(offCustom);
+
+const isCustom = (e: MethodEntry): boolean => e.id.startsWith('m_');
 
 const catClass = (e: MethodEntry): string =>
   e.cat === '生活指导' ? 'life' : e.cat === '思维工具' ? 'think' : 'argue';
@@ -35,14 +53,16 @@ const links = (e: MethodEntry): Array<{ icon: string; text: string }> => {
   return out;
 };
 
-const entries = computed(() => METHOD_ENTRIES);
+const entries = computed(() => [...METHOD_ENTRIES, ...custom.value]);
 
 function open(e: MethodEntry): void {
   opened.value = e;
+  delArmed.value = false;
 }
 
 function close(): void {
   opened.value = null;
+  delArmed.value = false;
 }
 
 /** 弹层里「用这条目开始格物」 */
@@ -58,12 +78,31 @@ function readDoc(e: MethodEntry): void {
   close();
   nav.openDoc(first.d, first.p);
 }
+
+/** 删除一条自建方法。第一次按只是把按钮 armed 起来 */
+function removeCustom(): void {
+  const e = opened.value;
+  if (!e || !isCustom(e)) return;
+  if (!delArmed.value) {
+    delArmed.value = true;
+    window.clearTimeout(delTimer);
+    delTimer = window.setTimeout(() => {
+      delArmed.value = false;
+    }, 3000);
+    return;
+  }
+  window.clearTimeout(delTimer);
+  delArmed.value = false;
+  core.methods.remove(e.id);
+  close();
+  nav.toast(`已删除「${e.name}」`);
+}
 </script>
 
 <template>
   <div class="methods">
     <div class="hint">
-      {{ entries.length }} 条 · 每条都是可操作的<b>程序</b>，不是概念解释 · 卡片底部标注接通哪里：<b>星图 / 原文 / 格物</b>
+      {{ entries.length }} 条（内置 {{ METHOD_ENTRIES.length }} + 文献 {{ custom.length }}）· 每条都是可操作的<b>程序</b>，不是概念解释 · 卡片底部标注接通哪里：<b>星图 / 原文 / 格物</b>
     </div>
 
     <div class="grid">
@@ -72,10 +111,10 @@ function readDoc(e: MethodEntry): void {
         :key="e.id"
         type="button"
         class="m-card"
-        :class="catClass(e)"
+        :class="[catClass(e), { lit: isCustom(e) }]"
         @click="open(e)"
       >
-        <div class="cat">{{ e.id }} · {{ e.cat }}</div>
+        <div class="cat">{{ isCustom(e) ? `文献 · ${e.cat}` : `${e.id} · ${e.cat}` }}</div>
         <h4>{{ e.name }}</h4>
         <p>{{ e.one }}</p>
         <div class="links">
@@ -121,6 +160,13 @@ function readDoc(e: MethodEntry): void {
         </div>
 
         <div class="src">出处：{{ opened.src }}</div>
+
+        <div v-if="isCustom(opened)" class="del-row">
+          <span class="note">这条来自文献研读的提取，删除后重新导入文献还能再提炼</span>
+          <button type="button" class="btn ghost sm" :class="{ armed: delArmed }" @click="removeCustom">
+            {{ delArmed ? '再点一次确认删除' : '删除这条' }}
+          </button>
+        </div>
 
         <div class="jump-row">
           <button type="button" class="jump-btn hot" @click="startGewu(opened)">
@@ -273,6 +319,42 @@ function readDoc(e: MethodEntry): void {
 
 .modal .chip {
   cursor: pointer;
+}
+
+/* 文献条目：右上角一枚小角标，和内置条目一眼分清 */
+.m-card.lit::after {
+  content: '文献';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--jade-soft);
+  color: var(--jade);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.del-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.del-row .note {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+}
+
+.btn.armed {
+  border-color: var(--ochre);
+  color: var(--ochre);
 }
 /* ============================================================
  * 窄屏（手机）

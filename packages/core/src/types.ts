@@ -355,3 +355,96 @@ export interface UserBook {
   readonly custom: true;
   readonly paras: readonly string[];
 }
+
+/* ============================================================
+ * 十四、文献 Agent（3.8.0）
+ *
+ * 用户导入哲学文本，AI 分段提取，反哺方法论 / 概念星系 / 日常格物 / 论道。
+ * 这里的类型是「提取产物」的规范形状：模型输出先经 ingest/parse.ts 收敛成它们，
+ * 再交各模块 store 校验入库 —— 模型说错话最多浪费一段生成，污染不进数据。
+ * ============================================================ */
+
+/** 文献提取可以反哺的模块 */
+export type IngestModule = 'method' | 'concept' | 'topic' | 'debate';
+
+/** 提取出的方法论草稿（入库前） */
+export interface MethodDraft {
+  readonly name: string;
+  readonly cat: MethodCategory;
+  readonly one: string;
+  readonly sop: readonly string[];
+  readonly misuse: string;
+}
+
+/** 概念草稿（星图节点） */
+export interface ConceptDraft {
+  readonly name: string;
+  readonly kind: NodeKind;
+  readonly school: string;
+  readonly brief: string;
+  readonly src: string;
+}
+
+/** 概念间关系草稿（星图边） */
+export interface RelationDraft {
+  readonly from: string;
+  readonly to: string;
+  readonly rel: EdgeRelation;
+  readonly label: string;
+}
+
+/** 格物题草稿（日常格物的文献议题） */
+export interface TopicDraft {
+  readonly title: string;
+  readonly question: string;
+  readonly why: string;
+}
+
+/** 论题草稿（论道的文献议题） */
+export interface DebateDraft {
+  readonly title: string;
+  readonly question: string;
+  readonly phil: string;
+}
+
+/** 模型单段输出的目标形状。缺的栏目按空数组容错。 */
+export interface ExtractPayload {
+  readonly methods: readonly MethodDraft[];
+  readonly concepts: readonly ConceptDraft[];
+  readonly relations: readonly RelationDraft[];
+  readonly topics: readonly TopicDraft[];
+  readonly debates: readonly DebateDraft[];
+}
+
+/** 文献格物题：一条可执行的晚间复盘剧本 */
+export interface GewuTopic {
+  readonly id: string;
+  readonly title: string;
+  readonly question: string;
+  readonly why: string;
+  readonly src: string;
+  readonly script: GewuScript;
+}
+
+/** 文献论题：一个可以拿去和哲学家对辩的问题 */
+export interface DebateTopic {
+  readonly id: string;
+  readonly title: string;
+  readonly question: string;
+  /** 文献中提到的哲学家名（可能为空） */
+  readonly phil: string;
+  /** 解析到的哲人 id；空串表示没匹配上，由用户自己选 */
+  readonly philId: string;
+  readonly src: string;
+}
+
+/**
+ * 暂存条目：解析校验后、用户确认前。
+ * module 决定它最终进哪个 store；relation 的端点指向同批或已有的概念 id。
+ */
+export type StagedItem =
+  | { readonly id: string; readonly module: 'method'; readonly name: string; readonly entry: MethodEntry }
+  | { readonly id: string; readonly module: 'concept'; readonly name: string; readonly node: StarNode }
+  | { readonly id: string; readonly module: 'relation'; readonly name: string; readonly edge: StarEdge }
+  | { readonly id: string; readonly module: 'topic'; readonly name: string; readonly topic: GewuTopic }
+  | { readonly id: string; readonly module: 'debate'; readonly name: string; readonly debate: DebateTopic };

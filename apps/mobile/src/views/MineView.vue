@@ -51,7 +51,7 @@ const greeting = computed(() => {
 const LINE = '哲学不在读懂别人，在于你终于能说清自己卡在哪。';
 
 interface Entry {
-  key: 'method' | 'book' | 'set';
+  key: 'method' | 'ingest' | 'book' | 'set';
   icon: string;
   title: string;
   desc: string;
@@ -63,6 +63,12 @@ const ENTRIES: readonly Entry[] = [
     icon: 'i-compass',
     title: '方法论库',
     desc: '斯多葛二分法、奥卡姆剃刀、现象学悬置…每一条都能直接拿去用',
+  },
+  {
+    key: 'ingest',
+    icon: 'i-agent',
+    title: '文献研读',
+    desc: '导入哲学文本，AI 分段提炼，反哺概念星系 / 方法论 / 格物 / 论道',
   },
   {
     key: 'book',
@@ -112,7 +118,7 @@ const ENTRIES: readonly Entry[] = [
 
     <footer class="about">
       <span>致知 · 思想栖所</span>
-      <span class="ver">v3.7</span>
+      <span class="ver">v3.8</span>
       <span class="note">数据只存在这台设备上，断网可用</span>
     </footer>
   </div>

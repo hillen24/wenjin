@@ -26,6 +26,7 @@ import { TtsController, type TtsEnv } from './tts';
 import { DebateSession } from './debate';
 import { GewuSession } from './gewu';
 import { PHILOSOPHERS } from './data/philosophers';
+import { MethodLibraryStore, GewuTopicStore, DebateTopicStore, IngestStageStore } from './ingest/stores';
 import {
   applyTheme,
   readStoredTheme,
@@ -93,6 +94,14 @@ export * from './debate';
 /* --- 点亮进度 --- */
 export * from './progress';
 
+/* --- 文献 Agent（3.8.0）：分段提取 / 容灾运行 / 质检漏斗 / 四处入库 --- */
+export * from './ingest/chunk';
+export * from './ingest/prompt';
+export * from './ingest/parse';
+export * from './ingest/job';
+export * from './ingest/stores';
+export * from './ingest/commit';
+
 /* --- 导出 --- */
 export * from './io/download';
 
@@ -129,6 +138,14 @@ export interface WenjinCore {
   progress: ProgressStore;
   /** 星图共建：用户自定义节点/边的存取与合并 */
   star: StarGraphStore;
+  /** 文献 Agent：方法论库自建条目（内置 11 条之外） */
+  methods: MethodLibraryStore;
+  /** 文献 Agent：文献格物题（GewuSession 的剧本解析器指向它） */
+  gewuTopics: GewuTopicStore;
+  /** 文献 Agent：文献论题 */
+  debateTopics: DebateTopicStore;
+  /** 文献 Agent：暂存区，提取完成、用户确认前的停机坪 */
+  ingestStage: IngestStageStore;
   tts: TtsController;
   debate: DebateSession;
   gewu: GewuSession;
@@ -225,6 +242,11 @@ export function createCore(opts: CoreOptions = {}): WenjinCore {
     ...opts.tts,
   });
 
+  const methodLibrary = new MethodLibraryStore(kv);
+  const gewuTopics = new GewuTopicStore(kv);
+  const debateTopics = new DebateTopicStore(kv);
+  const ingestStage = new IngestStageStore(kv);
+
   return {
     kv,
     settings,
@@ -235,8 +257,13 @@ export function createCore(opts: CoreOptions = {}): WenjinCore {
     reader: new ReaderStore(kv),
     progress: new ProgressStore(kv),
     star: new StarGraphStore(kv),
+    methods: methodLibrary,
+    gewuTopics,
+    debateTopics,
+    ingestStage,
     tts,
     debate: new DebateSession(PHILOSOPHERS),
-    gewu: new GewuSession(),
+    // 文献格物题走自己的剧本，文献方法用 SOP 现场兜底，内置条目不受影响
+    gewu: new GewuSession((id) => gewuTopics.scriptFor(id) ?? methodLibrary.scriptFor(id)),
   };
 }

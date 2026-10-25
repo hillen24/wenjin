@@ -107,7 +107,8 @@ function edgeFields(
 
 export type ValidateResult =
   | { ok: true; nodes: StarNode[]; edges: StarEdge[]; warnings: string[] }
-  | { ok: false; reason: string };
+  /** 失败也带 warnings：整批被挡下时，调用方要知道是被什么逐条挡下的 */
+  | { ok: false; reason: string; warnings: string[] };
 
 /**
  * 校验并规范化一批节点/边。
@@ -125,10 +126,10 @@ export function validateIncoming(
   const warnings: string[] = [];
 
   if (!Array.isArray(incoming.nodes) || !Array.isArray(incoming.edges)) {
-    return { ok: false, reason: 'nodes/edges 不是数组' };
+    return { ok: false, reason: 'nodes/edges 不是数组', warnings: [] };
   }
   if (incoming.nodes.length === 0) {
-    return { ok: false, reason: '没有给出任何节点' };
+    return { ok: false, reason: '没有给出任何节点', warnings: [] };
   }
 
   const taken = new Set(existingIds);
@@ -184,7 +185,7 @@ export function validateIncoming(
   }
 
   if (nodes.length === 0) {
-    return { ok: false, reason: '校验后一个节点都不剩（名字全空或全是重复？）' };
+    return { ok: false, reason: '校验后一个节点都不剩（名字全空或全是重复？）', warnings };
   }
 
   const validIds: ReadonlySet<string> = new Set([...existingIds, ...newIds]);
@@ -395,7 +396,7 @@ export class StarGraphStore {
   add(
     incoming: GraphFragment,
     builtin: { nodes?: ReadonlyArray<Pick<StarNode, 'id' | 'name'>>; edges?: ReadonlyArray<StarEdge> } = {},
-  ): { ok: true; graph: CustomGraph; warnings: string[] } | { ok: false; reason: string } {
+  ): { ok: true; graph: CustomGraph; warnings: string[] } | { ok: false; reason: string; warnings: string[] } {
     const cur = this.load();
     const builtinNodes = builtin.nodes ?? [];
     const existingIds = new Set([...builtinNodes.map((n) => n.id), ...cur.nodes.map((n) => n.id)]);
@@ -406,10 +407,10 @@ export class StarGraphStore {
     if (!r.ok) return r;
 
     if (cur.nodes.length + r.nodes.length > MAX_CUSTOM_NODES) {
-      return { ok: false, reason: `自定义节点已达上限（${MAX_CUSTOM_NODES}），先清理一些再加` };
+      return { ok: false, reason: `自定义节点已达上限（${MAX_CUSTOM_NODES}），先清理一些再加`, warnings: [] };
     }
     if (cur.edges.length + r.edges.length > MAX_CUSTOM_EDGES) {
-      return { ok: false, reason: `自定义关系已达上限（${MAX_CUSTOM_EDGES}）` };
+      return { ok: false, reason: `自定义关系已达上限（${MAX_CUSTOM_EDGES}）`, warnings: [] };
     }
 
     const next: CustomGraph = {

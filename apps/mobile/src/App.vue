@@ -16,6 +16,7 @@ import {
   BookView,
   DebateView,
   GewuView,
+  IngestView,
   MethodsView,
   ReaderView,
   SettingsView,
@@ -53,7 +54,7 @@ const TABS: readonly TabDef[] = [
 ];
 
 /** 「我的」这个底部格，在进到它的子页时也应该亮着 */
-const MINE_SUBS: readonly TabKey[] = ['method', 'book', 'set'];
+const MINE_SUBS: readonly TabKey[] = ['method', 'ingest', 'book', 'set'];
 
 const ALL_KEYS: readonly MobileTab[] = [...TABS.map((t) => t.key), ...MINE_SUBS];
 
@@ -99,6 +100,8 @@ const pageTitle = computed(() => {
       return '论道';
     case 'method':
       return '方法论库';
+    case 'ingest':
+      return '文献研读';
     case 'book':
       return '我的哲学书';
     case 'set':
@@ -231,6 +234,7 @@ onBeforeUnmount(() => {
         <DebateView v-else-if="tab === 'debate'" key="debate" />
         <MineView v-else-if="tab === 'me'" key="me" />
         <MethodsView v-else-if="tab === 'method'" key="method" />
+        <IngestView v-else-if="tab === 'ingest'" key="ingest" />
         <BookView v-else-if="tab === 'book'" key="book" />
         <SettingsView v-else-if="tab === 'set'" key="set" />
       </Transition>

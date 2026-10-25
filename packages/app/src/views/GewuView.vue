@@ -12,7 +12,7 @@
  * 用户看到的都是「致知 AI · 格物教练」，但提示条会说实话。
  */
 
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Icon } from '@wenjin/ui';
 import {
   GEWU_OPENING_HINT,
@@ -21,6 +21,7 @@ import {
   promptGewu,
   todayFull,
   type GewuCardRecord,
+  type GewuTopic,
   type SortItem,
 } from '@wenjin/core';
 import { useCore } from '../providers';
@@ -76,10 +77,41 @@ const stats = computed(() => {
 const history = computed(() => core.materials.get().cards.slice(0, 6));
 
 const entryOptions = computed(() =>
-  METHOD_ENTRIES.map((e) => ({ id: e.id, name: e.name, one: e.one })),
+  METHOD_ENTRIES.map((e) => ({ id: e.id, name: e.name, one: e.one, custom: false })),
 );
 
+/**
+ * 文献研读提取的格物题（t_ 前缀）。
+ *
+ * 它们自带 topicToScript 生成的三步剧本（core 的 GewuSession 已接线），
+ * 但没有 MethodEntry —— 所以追问不走 AI（没有条目可拼提示词），
+ * 直接跑预置剧本，界面上照实标「预置」。
+ */
+const litTopics = ref<readonly GewuTopic[]>(core.gewuTopics.load());
+const offTopics = core.gewuTopics.subscribe((t) => {
+  litTopics.value = t;
+});
+onBeforeUnmount(offTopics);
+
+const allOptions = computed(() => [
+  ...entryOptions.value,
+  ...litTopics.value.map((t) => ({ id: t.id, name: t.title, one: t.question, custom: true })),
+]);
+
 const currentEntry = computed(() => METHOD_ENTRIES.find((e) => e.id === entryId.value));
+const currentTopic = computed(() => litTopics.value.find((t) => t.id === entryId.value));
+const currentLabel = computed(() => currentEntry.value?.name ?? currentTopic.value?.title ?? '');
+const isLitEntry = computed(() => !currentEntry.value && !!currentTopic.value);
+
+/** 分拣阶段：用户自己补一条到某一列 */
+const sortDraft = ref('');
+
+function addSort(side: 'ctrl' | 'un'): void {
+  const t = sortDraft.value.trim();
+  if (!t) return;
+  sortItems.value = core.gewu.addItem(t, side).slice();
+  sortDraft.value = '';
+}
 
 /**
  * 从方法论库跳进来时，core 里已经设好了条目 —— 挂载时接住它。
@@ -125,22 +157,23 @@ async function begin(): Promise<void> {
     return;
   }
 
-  const e = currentEntry.value;
-  if (!e) return;
+  // 文献题没有 MethodEntry，拼不出提示词，直接跑预置剧本
+  if (!isLitEntry.value) {
+    const e = currentEntry.value;
+    if (e && core.ai.isLive()) {
+      typing.value = true;
+      const r = await core.ai.chat([
+        { role: 'system', content: promptGewu(e) },
+        { role: 'user', content: GEWU_OPENING_HINT },
+      ]);
+      typing.value = false;
 
-  if (core.ai.isLive()) {
-    typing.value = true;
-    const r = await core.ai.chat([
-      { role: 'system', content: promptGewu(e) },
-      { role: 'user', content: GEWU_OPENING_HINT },
-    ]);
-    typing.value = false;
-
-    if (r.ok) {
-      pushAi({ who: 'ai', text: r.reply.text, opts: ['我说不上来…', '换个角度问'] });
-      return;
+      if (r.ok) {
+        pushAi({ who: 'ai', text: r.reply.text, opts: ['我说不上来…', '换个角度问'] });
+        return;
+      }
+      nav.toast(`模型没回应（${r.reason}），用预置剧本继续`);
     }
-    nav.toast(`模型没回应（${r.reason}），用预置剧本继续`);
   }
 
   pushAi({ who: 'ai', text: step.t, opts: step.opts, canned: true });
@@ -163,31 +196,31 @@ async function say(text: string): Promise<void> {
     return;
   }
 
-  const e = currentEntry.value;
-  if (!e) return;
+  if (!isLitEntry.value) {
+    const e = currentEntry.value;
+    if (e && core.ai.isLive()) {
+      typing.value = true;
+      const r = await core.ai.chat([
+        { role: 'system', content: promptGewu(e) },
+        { role: 'user', content: gewuContinueHint(t) },
+      ]);
+      typing.value = false;
 
-  if (core.ai.isLive()) {
-    typing.value = true;
-    const r = await core.ai.chat([
-      { role: 'system', content: promptGewu(e) },
-      { role: 'user', content: gewuContinueHint(t) },
-    ]);
-    typing.value = false;
-
-    if (r.ok) {
-      const atEnd = core.gewu.stepIndex >= core.gewu.total - 1;
-      pushAi({
-        who: 'ai',
-        text: r.reply.text,
-        opts: atEnd ? undefined : ['我说不上来…', '换个角度问'],
-      });
-      if (atEnd) {
-        await new Promise((res) => setTimeout(res, 500));
-        goSort();
+      if (r.ok) {
+        const atEnd = core.gewu.stepIndex >= core.gewu.total - 1;
+        pushAi({
+          who: 'ai',
+          text: r.reply.text,
+          opts: atEnd ? undefined : ['我说不上来…', '换个角度问'],
+        });
+        if (atEnd) {
+          await new Promise((res) => setTimeout(res, 500));
+          goSort();
+        }
+        return;
       }
-      return;
+      nav.toast(`模型没回应（${r.reason}），用预置剧本继续`);
     }
-    nav.toast(`模型没回应（${r.reason}），用预置剧本继续`);
   }
 
   pushAi({ who: 'ai', text: next.t, opts: next.opts, canned: true });
@@ -208,7 +241,13 @@ function toggle(key: string): void {
 
 function makeCard(): void {
   const lit = core.gewu.newLights(core.progress.lit());
-  card.value = core.gewu.buildCard(lit);
+  const c = core.gewu.buildCard(lit);
+  // 文献题没有内置 entry，练习句会是空的 —— 拿题目自己的「为什么值得想」补上
+  if (!c.practice && currentTopic.value) {
+    card.value = { ...c, practice: currentTopic.value.why || currentTopic.value.question };
+  } else {
+    card.value = c;
+  }
   phase.value = 'card';
 }
 
@@ -259,14 +298,14 @@ function again(): void {
 
           <div class="picker">
             <button
-              v-for="o in entryOptions"
+              v-for="o in allOptions"
               :key="o.id"
               type="button"
               class="pick-row"
-              :class="{ on: o.id === entryId }"
+              :class="{ on: o.id === entryId, lit: o.custom }"
               @click="pick(o.id)"
             >
-              <span class="eid">{{ o.id }}</span>
+              <span class="eid">{{ o.custom ? '文献' : o.id }}</span>
               <span class="txt">
                 <span class="nm">{{ o.name }}</span>
                 <span class="one">{{ o.one }}</span>
@@ -283,7 +322,7 @@ function again(): void {
         <!-- ② 追问 -->
         <template v-else-if="phase === 'chat' || phase === 'sort' || phase === 'card'">
           <div class="loaded">
-            <span class="chip entry">{{ entryId }} {{ currentEntry?.name }}</span>
+            <span class="chip entry">{{ isLitEntry ? '文献' : entryId }} {{ currentLabel }}</span>
             <span class="note">{{ phase === 'chat' ? '追问剧本已加载' : '追问结束' }}</span>
           </div>
 
@@ -360,11 +399,18 @@ function again(): void {
             <button type="button" class="btn" @click="makeCard">生成格物卡 →</button>
             <span class="note">{{ emptySide }}</span>
           </div>
+
+          <!-- 自己补一条：没有预填文案的条目（含文献题）也能分拣 -->
+          <div class="sort-add">
+            <input v-model="sortDraft" placeholder="自己补一条观察，回车归到「可控」…" @keydown.enter.prevent="addSort('ctrl')" />
+            <button type="button" class="btn ghost sm" :disabled="!sortDraft.trim()" @click="addSort('ctrl')">+ 可控</button>
+            <button type="button" class="btn ghost sm" :disabled="!sortDraft.trim()" @click="addSort('un')">+ 不可控</button>
+          </div>
         </template>
 
         <!-- ④ 格物卡 -->
         <div v-if="phase === 'card' && card" class="gw-card">
-          <h4>格物卡 · {{ todayFull() }} · {{ card.entry }} {{ currentEntry?.name }}</h4>
+          <h4>格物卡 · {{ todayFull() }} · {{ isLitEntry ? '文献' : card.entry }} {{ currentLabel }}</h4>
 
           <div class="row"><div class="lab">烦扰</div><div class="val">{{ card.bother }}</div></div>
           <div class="row">
@@ -525,6 +571,16 @@ function again(): void {
   background: var(--ochre-soft);
 }
 
+/* 文献题：玉色系，和内置的赭色系一眼分清 */
+.pick-row.lit .eid {
+  color: var(--jade);
+}
+
+.pick-row.lit.on {
+  border-color: var(--jade);
+  background: var(--jade-soft);
+}
+
 .eid {
   flex: none;
   min-width: 30px;
@@ -669,6 +725,35 @@ function again(): void {
   align-items: center;
   gap: 12px;
   margin-top: 16px;
+}
+
+/* ---------- 分拣：自己补一条 ---------- */
+
+.sort-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sort-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.16s var(--ease);
+}
+
+.sort-add input:focus {
+  border-color: var(--accent);
+}
+
+.sort-add input::placeholder {
+  color: var(--ink3);
 }
 
 /* ---------- 格物卡 ---------- */
@@ -907,6 +992,15 @@ function again(): void {
 
   .col {
     min-width: 0;
+  }
+
+  /* 补充条目在窄屏换行：输入框独占一行，两个按钮并排 */
+  .sort-add {
+    flex-wrap: wrap;
+  }
+
+  .sort-add input {
+    flex-basis: 100%;
   }
 }
 </style>

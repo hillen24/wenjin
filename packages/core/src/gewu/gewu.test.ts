@@ -167,3 +167,35 @@ describe('点亮概念', () => {
     expect(g.newLights([])).toEqual([]);
   });
 });
+
+describe('文献剧本注入（3.8.0 文献 Agent）', () => {
+  const LIT_SCRIPT = [{ t: '文献题第一步：先问自己', opts: ['手上有一件事'] }, { t: '收尾，出卡。', end: true }];
+
+  it('注入的剧本优先于 SOP 兜底', () => {
+    const g = new GewuSession((id) => (id === 't_x' ? LIT_SCRIPT : undefined));
+    g.setEntry('t_x');
+    expect(g.begin()!.t).toContain('文献题第一步');
+    expect(g.total).toBe(2);
+  });
+
+  it('内置手写剧本不让位给注入（A1 仍是原来的剧本）', () => {
+    const g = new GewuSession(() => LIT_SCRIPT);
+    g.setEntry('A1');
+    expect(g.begin()!.t).toContain('今天有什么烦扰着你');
+  });
+
+  it('解析器返回空时回落到 SOP 现场兜底', () => {
+    const g = new GewuSession(() => []);
+    g.setEntry('B2'); // 没有手写剧本的内置条目
+    expect(g.total).toBe(3);
+    expect(g.begin()!.t).toContain('现象学悬置');
+  });
+
+  it('没有注入时行为与旧版完全一致', () => {
+    const g = new GewuSession();
+    g.setEntry('t_x');
+    expect(g.begin()).toBeUndefined(); // 未知条目给空剧本
+    g.setEntry('A1');
+    expect(g.begin()).toBeDefined();
+  });
+});

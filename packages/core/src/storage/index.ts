@@ -150,6 +150,14 @@ export const STORAGE_KEYS = {
   materials: 'wj_materials_v1',
   /** 星图共建：用户自定义节点与边，形如 { nodes, edges } */
   customGraph: 'wj_custom_graph_v1',
+  /** 文献 Agent：方法论库自建条目（内置 11 条之外的血肉） */
+  customMethods: 'wj_custom_methods_v1',
+  /** 文献 Agent：文献格物题，自带可执行剧本 */
+  customGewu: 'wj_custom_gewu_v1',
+  /** 文献 Agent：文献论题，可拿去和哲学家对辩 */
+  customDebate: 'wj_custom_debate_v1',
+  /** 文献 Agent：暂存区，提取完成、用户确认前的停机坪 */
+  ingestStage: 'wj_ingest_stage_v1',
 } as const;
 
 /** 单篇阅读进度。旧版是 'wj_prog_' + docId，保持一致。 */

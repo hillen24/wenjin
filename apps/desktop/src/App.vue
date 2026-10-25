@@ -13,6 +13,7 @@ import {
   BookView,
   DebateView,
   GewuView,
+  IngestView,
   MethodsView,
   ReaderView,
   SettingsView,
@@ -35,6 +36,7 @@ interface TabDef {
 const TABS: readonly TabDef[] = [
   { key: 'star', label: '概念星系', icon: 'i-star' },
   { key: 'read', label: '精读伴读', icon: 'i-book' },
+  { key: 'ingest', label: '文献研读', icon: 'i-agent' },
   { key: 'method', label: '方法论库', icon: 'i-compass' },
   { key: 'gewu', label: '日常格物', icon: 'i-moon' },
   { key: 'debate', label: '论道', icon: 'i-scale' },
@@ -162,7 +164,7 @@ function toggleTheme(): void {
 }
 
 /**
- * 键盘快捷键：Alt + 1..7 直接切页。
+ * 键盘快捷键：Alt + 1..8 直接切页。
  *
  * 用 Alt 而不是裸数字，是因为这些页面里有输入框和数字表单，
  * 裸数字会把键入吃掉。Alt 组合在输入框里也不会误触。
@@ -248,6 +250,7 @@ onBeforeUnmount(() => {
       <Transition name="view" mode="out-in">
         <StarView v-if="tab === 'star'" key="star" :focus="focusNode?.id ?? null" />
         <ReaderView v-else-if="tab === 'read'" key="read" :jump="jumpDoc" />
+        <IngestView v-else-if="tab === 'ingest'" key="ingest" />
         <MethodsView v-else-if="tab === 'method'" key="method" />
         <GewuView v-else-if="tab === 'gewu'" key="gewu" />
         <DebateView v-else-if="tab === 'debate'" key="debate" />
@@ -434,6 +437,11 @@ onBeforeUnmount(() => {
 .nav-btn:hover .i-book,
 .nav-btn:hover .i-scale {
   transform: translateY(-1.5px);
+}
+
+/* 文献研读：文档轻轻抬一下，像被拿起来翻 */
+.nav-btn:hover .i-agent {
+  transform: translateY(-1.5px) scale(1.04);
 }
 
 .nav-btn.on .i-star {

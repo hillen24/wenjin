@@ -45,13 +45,24 @@ export function genericScript(e: MethodEntry): GewuScript {
   ];
 }
 
-/** 某条目该用的剧本 */
+/** 某条目该用的剧本（无注入时的默认解析：内置手写剧本 → SOP 兜底 → 空） */
 export function scriptFor(entryId: string): GewuScript {
   const own = GEWU_SCRIPTS[entryId];
   if (own) return own;
   const e = entryById(entryId);
   return e ? genericScript(e) : [];
 }
+
+/**
+ * 剧本解析器注入点。
+ *
+ * 文献 Agent 的格物题（GewuTopic）自带 topicToScript 生成的三步剧本，
+ * 但它们是数据不是代码，不能进 GEWU_SCRIPTS 常量表 ——
+ * 所以会话不直接查表，而是留一个解析器口子：
+ * createCore 把 gewuTopics.scriptFor 注进来，内置条目走原路径，
+ * 文献题（t_ 前缀 id）走暂存库。没有注入时行为与旧版完全一致。
+ */
+export type ScriptResolver = (entryId: string) => GewuScript | undefined;
 
 export class GewuSession {
   /** 当前选中的方法论 id */
@@ -60,6 +71,7 @@ export class GewuSession {
   private steps: GewuScript = [];
   private index = 0;
   private answers: string[] = [];
+  private readonly customScripts?: ScriptResolver;
 
   /** 二分归类的条目。进入出卡阶段前为空。 */
   sortItems: SortItem[] = [];
@@ -89,16 +101,30 @@ export class GewuSession {
     return this.index >= this.steps.length;
   }
 
+  constructor(customScripts?: ScriptResolver) {
+    this.customScripts = customScripts;
+  }
+
   setEntry(id: string): void {
     this.entryId = id;
     this.reset();
   }
 
   reset(): void {
-    this.steps = scriptFor(this.entryId);
+    this.steps = this.resolveScript(this.entryId);
     this.index = 0;
     this.answers = [];
     this.sortItems = [];
+  }
+
+  /** 内置手写剧本 → 注入的文献剧本 → SOP 现场兜底 */
+  private resolveScript(id: string): GewuScript {
+    const own = GEWU_SCRIPTS[id];
+    if (own) return own;
+    const custom = this.customScripts?.(id);
+    if (custom && custom.length > 0) return custom;
+    const e = entryById(id);
+    return e ? genericScript(e) : [];
   }
 
   /** 开始一次复盘，返回第一个剧本步骤 */

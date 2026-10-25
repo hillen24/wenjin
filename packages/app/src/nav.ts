@@ -11,7 +11,7 @@
 
 import { inject, provide, type InjectionKey } from 'vue';
 
-export type TabKey = 'star' | 'read' | 'method' | 'gewu' | 'debate' | 'book' | 'set';
+export type TabKey = 'star' | 'read' | 'ingest' | 'method' | 'gewu' | 'debate' | 'book' | 'set';
 
 export interface NavApi {
   /** 切到某个视图 */
