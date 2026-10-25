@@ -51,6 +51,7 @@ async function goTo(id: string, para: number): Promise<void> {
   if (!el) return;
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   flashIndex.value = para;
+  currentPara.value = para;
   window.setTimeout(() => {
     flashIndex.value = -1;
   }, 1600);
@@ -81,6 +82,14 @@ function selectDoc(id: string): void {
   curId.value = id;
   refreshProgress();
   resetPanel();
+  // 换书回到开头，并按已读进度把「当前段」对齐到上次读的地方
+  currentPara.value = 0;
+  void nextTick(() => {
+    const d = docMain.value;
+    if (d) d.scrollTop = 0;
+    const read = readSet.value;
+    currentPara.value = read.length ? Math.min(Math.max(...read) + 1, Math.max(0, paras.value.length - 1)) : 0;
+  });
 }
 
 /* ---------------- 字号 ---------------- */
@@ -99,6 +108,141 @@ function bumpFont(delta: number): void {
 const docMain = ref<HTMLElement | null>(null);
 
 const paras = computed<readonly string[]>(() => doc.value?.paras ?? []);
+
+/* ============================================================
+ * 翻页
+ *
+ * 旧版没有翻页，只能靠鼠标滚。手机上一滚几千字就找不着北，
+ * 桌面上一本 98 段的《庄子》更是读不到一半。
+ *
+ * 现在三条路都能走：
+ *   · 工具条上的「上一段 / 下一段」——点一下翻一段；
+ *   · 键盘 ↑↓ / PageUp / PageDown / Home / End；
+ *   · 底部进度条告诉你读到第几段、还剩多少。
+ *
+ * 当前位置的判定：视口顶部压着的那一段。滚动时用 rAF 节流重算，
+ * 不做 IntersectionObserver——段落可能上百个，直接按几何位置算更省事。
+ * ============================================================ */
+
+const currentPara = ref(0);
+
+function paraEls(): HTMLElement[] {
+  if (!docMain.value) return [];
+  return Array.from(docMain.value.querySelectorAll<HTMLElement>('.para'));
+}
+
+function updateCurrentPara(): void {
+  const els = paraEls();
+  if (!els.length) return;
+  const box = docMain.value;
+  const top = box?.getBoundingClientRect().top ?? 0;
+  // 滚到底时，视口顶部那一段并不是「你正在读的」——最后一段才是
+  if (box && box.scrollTop + box.clientHeight >= box.scrollHeight - 2) {
+    currentPara.value = els.length - 1;
+    return;
+  }
+  let idx = 0;
+  for (let i = 0; i < els.length; i += 1) {
+    const r = els[i]!.getBoundingClientRect();
+    if (r.bottom <= top + 8) {
+      idx = i;
+      continue;
+    }
+    // 第一段已经滚到视口顶以上（读过的部分）时，指针落到下一段
+    idx = i;
+    break;
+  }
+  currentPara.value = idx;
+}
+
+let scrollPending = false;
+function onDocScroll(): void {
+  if (scrollPending) return;
+  scrollPending = true;
+  requestAnimationFrame(() => {
+    scrollPending = false;
+    updateCurrentPara();
+  });
+}
+
+function gotoPara(i: number): void {
+  const els = paraEls();
+  if (!els.length) return;
+  const t = Math.max(0, Math.min(els.length - 1, i));
+  const el = els[t]!;
+  // 跨度大就别用平滑动画：一次滚两万像素的 smooth 会又慢又卡，
+  // 读起来像卡死。跨几屏以内才值得有那段滑行。
+  const scroller = docMain.value;
+  const distance = scroller ? Math.abs(el.offsetTop - scroller.scrollTop) : 0;
+  const smooth = distance < 2400;
+  el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  currentPara.value = t;
+}
+
+function nextPara(): void {
+  gotoPara(currentPara.value + 1);
+}
+
+function prevPara(): void {
+  gotoPara(currentPara.value - 1);
+}
+
+function goTop(): void {
+  gotoPara(0);
+}
+
+function goEnd(): void {
+  gotoPara(paras.value.length - 1);
+}
+
+/** 继续上次读：跳到第一段还没读过的（没读过就从头） */
+function resumeRead(): void {
+  const read = readSet.value;
+  const next = read.length ? Math.max(...read) + 1 : 0;
+  gotoPara(Math.min(next, Math.max(0, paras.value.length - 1)));
+}
+
+const progressPct = computed(() => {
+  const n = paras.value.length;
+  if (!n) return 0;
+  return Math.round(((currentPara.value + 1) / n) * 100);
+});
+
+const readPct = computed(() => {
+  const n = paras.value.length;
+  if (!n) return 0;
+  return Math.round((readSet.value.length / n) * 100);
+});
+
+/** 键盘翻页。输入框里打字时不抢键。 */
+function onKeydown(e: KeyboardEvent): void {
+  const t = e.target as HTMLElement | null;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (!paras.value.length) return;
+
+  switch (e.key) {
+    case 'ArrowDown':
+    case 'PageDown':
+      e.preventDefault();
+      nextPara();
+      break;
+    case 'ArrowUp':
+    case 'PageUp':
+      e.preventDefault();
+      prevPara();
+      break;
+    case 'Home':
+      e.preventDefault();
+      goTop();
+      break;
+    case 'End':
+      e.preventDefault();
+      goEnd();
+      break;
+    default:
+      break;
+  }
+}
 
 function toggleRead(i: number): void {
   core.reader.markRead(curId.value, i);
@@ -882,6 +1026,7 @@ onMounted(() => {
   refreshShelf();
   refreshProgress();
   document.addEventListener('selectionchange', onSelectionChange);
+  window.addEventListener('keydown', onKeydown);
   if (props.jump) void goTo(props.jump.id, props.jump.para);
 });
 
@@ -896,6 +1041,7 @@ watch(
 onBeforeUnmount(() => {
   stopTyping();
   document.removeEventListener('selectionchange', onSelectionChange);
+  window.removeEventListener('keydown', onKeydown);
   core.tts.stop();
 });
 </script>
@@ -961,6 +1107,12 @@ onBeforeUnmount(() => {
       <!-- 正文 -->
       <div class="doc-col">
         <div class="toolbar">
+          <div class="group pager">
+            <button type="button" :disabled="currentPara <= 0" @click="prevPara">上一段</button>
+            <span class="val">{{ currentPara + 1 }} / {{ paras.length }}</span>
+            <button type="button" :disabled="currentPara >= paras.length - 1" @click="nextPara">下一段</button>
+            <button type="button" @click="resumeRead">继续读</button>
+          </div>
           <div class="group">
             <span class="lab">字号</span>
             <button type="button" @click="bumpFont(-1)">A－</button>
@@ -978,7 +1130,18 @@ onBeforeUnmount(() => {
           <span class="engine">{{ ttsEngineName }}</span>
         </div>
 
-        <div ref="docMain" class="doc" :style="{ '--reading-size': `${fontSize}px` }" @mouseup="onMouseUp">
+        <!-- 阅读进度：细条贴在正文顶端，兼作「读到哪了」的坐标 -->
+        <div class="doc-progress" :title="`已读 ${readPct}%`">
+          <i :style="{ width: `${progressPct}%` }" />
+        </div>
+
+        <div
+          ref="docMain"
+          class="doc"
+          :style="{ '--reading-size': `${fontSize}px` }"
+          @mouseup="onMouseUp"
+          @scroll="onDocScroll"
+        >
           <template v-if="doc">
             <h2 class="serif">{{ doc.title }}</h2>
             <div class="meta">{{ doc.meta }}</div>
@@ -1012,6 +1175,18 @@ onBeforeUnmount(() => {
             </p>
           </template>
           <div v-else class="none">书架上还没有这本书。</div>
+        </div>
+
+        <!-- 手机端常驻翻页条：手指在屏幕上时，翻页比滚动更好使 -->
+        <div class="m-pager">
+          <button type="button" :disabled="currentPara <= 0" @click="prevPara">上一段</button>
+          <span class="mp-val">
+            <b>{{ currentPara + 1 }}</b> / {{ paras.length }}
+            <em>已读 {{ readPct }}%</em>
+          </span>
+          <button type="button" :disabled="currentPara >= paras.length - 1" @click="nextPara">
+            下一段
+          </button>
         </div>
       </div>
 
@@ -1071,6 +1246,16 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr) 320px;
+}
+
+/*
+ * 关键修复（3.9.1）：grid 子项的自动最小尺寸是「内容高度」。
+ * 不写 min-height: 0，三栏都会被正文撑开——.doc 的 overflow-y: auto
+ * 永远不触发，整本书撑到 25365px，外层 .stage 是 overflow: hidden，
+ * 于是第 4 段之后全部被裁掉且滚不到（老 bug：只能读前几段）。
+ */
+.wrap > * {
+  min-height: 0;
 }
 
 /* ---------- 书架 ---------- */
@@ -1171,16 +1356,111 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+  /* 工具条塞了四组控件，正文栏一窄就挤成竖排——允许换行，别让字断行 */
+  flex-wrap: wrap;
+  row-gap: 8px;
   padding: 10px 22px;
   border-bottom: 1px solid var(--line);
   font-size: 12px;
   color: var(--ink2);
 }
 
+.toolbar .lab,
+.toolbar .val,
+.toolbar button,
+.toolbar .engine {
+  white-space: nowrap;
+}
+
+/* 引擎名推到最右，右边留白归它 */
+.toolbar .engine {
+  margin-left: auto;
+}
+
 .group {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* 翻页组：夹在工具条最左边，是这一栏最常用的动作 */
+.group.pager {
+  gap: 4px;
+  padding-right: 10px;
+  border-right: 1px solid var(--line);
+}
+
+.group.pager .val {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink2);
+  min-width: 58px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 阅读进度条：贴在正文顶端，像书页上的一道书签 */
+.doc-progress {
+  flex: none;
+  height: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.doc-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s var(--ease);
+}
+
+/* 手机端常驻翻页条 */
+.m-pager {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  border-top: 1px solid var(--line);
+  background: var(--bg2);
+  font-size: 12px;
+}
+
+.m-pager button {
+  flex: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-hi);
+  background: var(--card);
+  color: var(--ink2);
+  font-size: 13px;
+}
+
+.m-pager button:disabled {
+  opacity: 0.4;
+}
+
+.m-pager .mp-val {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.35;
+  color: var(--ink3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.m-pager .mp-val b {
+  font-size: 14px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.m-pager .mp-val em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--ink3);
 }
 
 .group .lab {
@@ -1540,6 +1820,15 @@ onBeforeUnmount(() => {
     flex-wrap: wrap;
     gap: 10px;
     padding: 8px 12px;
+  }
+
+  /* 手机上把翻页条亮出来，工具条里的翻页组让位（重复了） */
+  .group.pager {
+    display: none;
+  }
+
+  .m-pager {
+    display: flex;
   }
 }
 </style>
