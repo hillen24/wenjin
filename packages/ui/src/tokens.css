@@ -6,12 +6,19 @@
  *
  * 原样承自 v2.1 单文件版的 :root 变量表，未做重命名：
  * 变量名已经渗进几千行样式里，改名只会制造无谓的迁移风险。
+ *
+ * 3.9.0 圆角与质感上调：半径阶梯整体放大一档（16→18 起），
+ * 新增玻璃（glass）与柔影（sh-float）两组 token。
+ * 立场：华丽但不夜店——圆角放大、浮层毛玻璃、投影分层，
+ * 颜色一律不动，不做霓虹渐变，不加发光动画。
  */
 
 :root {
-  --radius: 16px;
-  --radius-sm: 10px;
-  --radius-xs: 8px;
+  --radius: 18px;
+  --radius-sm: 13px;
+  --radius-xs: 10px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
 
   /* 字体栈。system-ui 打头，各平台用各自的系统字体。 */
   --mono: ui-monospace, "Cascadia Mono", Consolas, "JetBrains Mono", "PingFang SC", monospace;
@@ -20,6 +27,11 @@
 
   /* 缓动曲线：起步快、收尾稳，比 ease-out 更「有手感」 */
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* 玻璃：浮层（弹窗、toast、浮起面板）的统一质感。
+   * 透明度刻意压在 0.7 以上——毛玻璃是质感，不是把文字泡进水里的借口。 */
+  --glass-blur: 20px;
+  --glass-saturate: 1.5;
 
   --ochre-soft: rgba(255, 106, 77, 0.14);
   --teal-soft: rgba(79, 209, 197, 0.13);
@@ -70,8 +82,16 @@
   --paper-line: #e4e0d3;
   --paper-accent: #c24a2e;
 
-  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.22), 0 10px 28px rgba(0, 0, 0, 0.26);
-  --sh-pop: 0 18px 50px rgba(0, 0, 0, 0.52);
+  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.24), 0 12px 32px rgba(0, 0, 0, 0.28);
+  --sh-pop: 0 24px 64px rgba(0, 0, 0, 0.56);
+  /* 浮起元素（toast、吸顶条、激活 pill）用的小而软的投影 */
+  --sh-float: 0 2px 6px rgba(0, 0, 0, 0.22), 0 14px 36px rgba(0, 0, 0, 0.3);
+
+  /* 玻璃浮层：底色压到 0.72 以上，保证毛玻璃上的文字对比度不塌 */
+  --glass-bg: rgba(20, 26, 40, 0.74);
+  --glass-line: rgba(148, 163, 184, 0.18);
+  /* 上边缘受光：暗色下一丝冷白，模拟真实材质的折角 */
+  --glass-hi: rgba(255, 255, 255, 0.07);
 
   --sb-bg: rgba(11, 14, 20, 0.78);
   --mask: rgba(7, 10, 16, 0.66);
@@ -143,8 +163,14 @@
   --paper-line: #ece7dc;
   --paper-accent: #c24a2e;
 
-  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 28px rgba(0, 0, 0, 0.07);
-  --sh-pop: 0 18px 50px rgba(0, 0, 0, 0.18);
+  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.09);
+  --sh-pop: 0 24px 64px rgba(0, 0, 0, 0.2);
+  --sh-float: 0 2px 6px rgba(0, 0, 0, 0.06), 0 14px 36px rgba(0, 0, 0, 0.12);
+
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-line: rgba(0, 0, 0, 0.08);
+  /* 亮色下的受光线用纯白——贴在白卡片上几乎不可见，刚好的分寸 */
+  --glass-hi: rgba(255, 255, 255, 0.9);
 
   --sb-bg: rgba(245, 245, 247, 0.8);
   --mask: rgba(0, 0, 0, 0.32);

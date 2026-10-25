@@ -40,6 +40,7 @@ import {
 } from '@wenjin/core';
 import { useCore } from '../providers';
 import { useNav } from '../nav';
+import { autoBackup } from '../sync/backup';
 
 const core = useCore();
 const nav = useNav();
@@ -102,6 +103,9 @@ const picked = ref<Set<IngestModule>>(
 );
 const CHAR_OPTIONS: readonly number[] = [1500, 3000, 5000];
 const chunkChars = ref<number>(DEFAULT_CHUNK_CHARS);
+
+/** 本篇文献原文在书架上的 id（startJob 时写入，失败为空串） */
+const bookId = ref('');
 
 const charCount = computed(() => text.value.length);
 const estimate = computed(() => estimateChunks(text.value, chunkChars.value));
@@ -221,6 +225,17 @@ function startJob(): void {
   if (!canStart.value) return;
   const chunks = splitIntoChunks(text.value, chunkChars.value);
   if (chunks.length === 0) return;
+
+  // 用户投入的文献，原文也要能读 —— 提取完概念就走的书是耍流氓。
+  // 去重按标题：同一本反复导入不重复占书架。失败（太大/配额满）不拦分析，
+  // 只提示一句——提取照跑，原文读不了是遗憾不是事故。
+  const book = core.reader.addImportedBook(source.value.trim(), text.value);
+  bookId.value = book.ok ? book.id : '';
+  if (book.ok) {
+    nav.toast(`《${book.title}》原文已入精读伴读书架（${book.paras} 段）`);
+  } else {
+    nav.toast(`原文没能入书架：${book.reason}（分析照常进行）`);
+  }
 
   const j = new IngestJob({
     chunks,
@@ -379,6 +394,11 @@ function commit(): void {
     nav.toast('没有勾选任何条目');
     return;
   }
+  // 入库是一次性、跨四个 store 的不可逆写入——先自动备份再落库。
+  // 备份失败不拦入库（提取成果比备份金贵），只留一句提示。
+  void autoBackup('文献入库前').then((r) => {
+    if (!r.ok) nav.toast(`自动备份没做成：${r.reason}`);
+  });
   const r = commitStaged(
     pickedItems,
     {
@@ -473,15 +493,29 @@ const chunkSummary = computed(() => {
 
 onMounted(() => {
   const j = activeJob;
-  if (!j) return;
-  job.value = j;
-  snap.value = j.snapshot;
-  offJob = j.subscribe(() => {
+  if (j) {
+    job.value = j;
     snap.value = j.snapshot;
-  });
-  const st = j.snapshot.status;
-  if (st === 'running' || st === 'paused' || st === 'aborted') phase.value = 'running';
-  else if (staged.value.length > 0) phase.value = 'preview';
+    offJob = j.subscribe(() => {
+      snap.value = j.snapshot;
+    });
+    const st = j.snapshot.status;
+    if (st === 'running' || st === 'paused' || st === 'aborted') {
+      phase.value = 'running';
+      return;
+    }
+  }
+  // 刷新 / 重开：任务对象没了，但暂存区还在——直接进预览，
+  // 别让用户对着一张空导入页怀疑「我的提取成果去哪了」。
+  // 顺手按出处（文献标题）把「去读原文」的链接找回来。
+  if (staged.value.length > 0) {
+    phase.value = 'preview';
+    const title = srcOf(staged.value[0]!).trim();
+    if (title) {
+      const b = core.reader.userBooks().find((x) => x.title === title);
+      if (b) bookId.value = b.id;
+    }
+  }
 });
 
 onBeforeUnmount(() => {
@@ -606,6 +640,9 @@ onBeforeUnmount(() => {
             <button v-if="hasPending && (jobAborted || jobDone || paused)" type="button" class="btn sm" @click="retryJob">
               续跑未完成段
             </button>
+            <button v-if="bookId" type="button" class="btn ghost sm" @click="nav.openDoc(bookId, 0)">
+              去读原文
+            </button>
             <button type="button" class="btn ghost sm" @click="goPreview">
               去预览入库<template v-if="staged.length">（暂存 {{ staged.length }} 条）</template>
             </button>
@@ -696,6 +733,9 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-if="staged.length" class="pv-ctrls">
+            <button v-if="bookId" type="button" class="btn ghost sm" @click="nav.openDoc(bookId, 0)">
+              去读原文
+            </button>
             <button type="button" class="btn ghost sm" @click="selectAll">全选</button>
             <button type="button" class="btn ghost sm" @click="selectNone">全不选</button>
             <span class="grow" />

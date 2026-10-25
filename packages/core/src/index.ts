@@ -108,6 +108,9 @@ export * from './io/download';
 /* --- 局域网同步（整机快照） --- */
 export * from './sync';
 
+/* --- 数据备份（一键导出 / 自动备份 / 恢复） --- */
+export * from './backup';
+
 export interface CoreOptions {
   /** 注入存储实现。单测传 MemoryStorage，就不需要 jsdom。 */
   storage?: StorageAdapter;

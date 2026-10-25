@@ -7,11 +7,13 @@
  * 中间没有第二份状态副本 —— 所以不会再出现「设置页显示成功、侧栏显示失败」。
  */
 
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Icon } from '@wenjin/ui';
 import {
   EDGE_VOICES,
   PROVIDERS,
+  describeSnapshot,
+  parseBackupFile,
   type AiStatus,
   type Settings,
   type SettingsPatch,
@@ -20,6 +22,17 @@ import {
 } from '@wenjin/core';
 import { useCore } from '../providers';
 import LanSync from '../sync/LanSync.vue';
+import { reloadSoon } from '../sync/lan';
+import {
+  autoBackup,
+  exportBackup,
+  isDesktop,
+  listBackups,
+  readBackup,
+  removeBackup,
+  restoreBackupText,
+  type AutoBackupInfo,
+} from '../sync/backup';
 
 const core = useCore();
 
@@ -136,6 +149,131 @@ const ENGINES: { key: TtsEngine; label: string }[] = [
 
 function pickTheme(t: ThemeMode): void {
   core.theme.apply(t);
+}
+
+/* ---------------- 数据备份 ---------------- */
+
+const desktop = isDesktop();
+const bkBusy = ref(false);
+const bkHint = ref('');
+const bkList = ref<AutoBackupInfo[]>([]);
+const bkDir = ref('');
+
+/** 待确认的恢复：文件已选、内容已校验，等用户再点一次「确认恢复」 */
+const bkPending = ref<{ text: string; summary: string } | null>(null);
+const bkArmed = ref(false);
+
+function fmtTime(at: number): string {
+  if (!at) return '未知时间';
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fmtSize(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+async function refreshBackups(): Promise<void> {
+  bkList.value = await listBackups();
+}
+
+onMounted(async () => {
+  void refreshBackups();
+  if (desktop) {
+    try {
+      const b = window.wjBridge;
+      if (b) bkDir.value = await b.backupDir();
+    } catch {
+      /* 拿不到目录路径只是少显示一行，不影响备份 */
+    }
+  }
+});
+
+async function doExport(): Promise<void> {
+  bkBusy.value = true;
+  bkHint.value = '';
+  const r = await exportBackup();
+  bkBusy.value = false;
+  bkHint.value = r.ok
+    ? r.where === 'disk'
+      ? '备份文件已保存'
+      : '备份文件已开始下载'
+    : r.reason;
+}
+
+/** 手动触发一次自动备份（等不到入库/退出，现在就要一份） */
+async function doAutoBackup(): Promise<void> {
+  bkBusy.value = true;
+  const r = await autoBackup('手动备份');
+  bkBusy.value = false;
+  void refreshBackups();
+  bkHint.value = r.ok
+    ? r.where === 'disk'
+      ? '已备份到本机磁盘'
+      : '已备份到本机存储'
+    : `备份失败：${r.reason}`;
+}
+
+async function onImportFile(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement;
+  const f = input.files?.[0];
+  input.value = '';
+  if (!f) return;
+  const text = await f.text();
+  // 先解析校验，告诉用户这份备份里有什么，再等一次确认——
+  // 恢复是覆盖式操作，不能让用户蒙着眼睛点下去。
+  // 注意这里只能用纯解析：带副作用的恢复留到用户点「确认恢复」之后。
+  let summary = '';
+  try {
+    const raw = JSON.parse(text);
+    const r = parseBackupFile(raw);
+    if (!r.ok) {
+      bkHint.value = `这份备份用不了：${r.reason}`;
+      return;
+    }
+    const st = describeSnapshot(r.snap);
+    summary = `含 ${st.keys} 项数据 · 格物卡 ${st.cards} · 论道 ${st.debates} · 藏书 ${st.books}`;
+  } catch {
+    bkHint.value = '这份备份用不了：不是合法的 JSON 文件';
+    return;
+  }
+  bkPending.value = { text, summary };
+  bkArmed.value = true;
+  window.setTimeout(() => {
+    bkArmed.value = false;
+  }, 5000);
+}
+
+async function doRestore(text: string): Promise<void> {
+  bkBusy.value = true;
+  const r = restoreBackupText(text);
+  bkBusy.value = false;
+  bkPending.value = null;
+  if (!r.ok) {
+    bkHint.value = `恢复失败：${r.reason}`;
+    return;
+  }
+  bkHint.value = '已从备份恢复（恢复前的数据也自动留了一份）· 即将重载…';
+  reloadSoon();
+}
+
+async function restoreFromList(b: AutoBackupInfo): Promise<void> {
+  bkBusy.value = true;
+  const text = await readBackup(b.key);
+  bkBusy.value = false;
+  if (!text) {
+    bkHint.value = '这份备份读不出来了';
+    return;
+  }
+  await doRestore(text);
+}
+
+async function removeFromList(b: AutoBackupInfo): Promise<void> {
+  await removeBackup(b.key);
+  void refreshBackups();
 }
 
 onBeforeUnmount(() => {
@@ -285,6 +423,61 @@ onBeforeUnmount(() => {
         </header>
 
         <LanSync />
+      </section>
+
+      <!-- ================= 数据备份 ================= -->
+      <section>
+        <header>
+          <h2>数据备份</h2>
+          <p>
+            换设备搬家靠上面那个；防误操作、防存储抽风，靠这里。{{
+              desktop
+                ? '电脑端每次文献入库前、退出前都会自动备份到本机磁盘，保留最近 10 份。'
+                : '手机端自动备份留在本机存储，保留最近 3 份；重要备份请用「导出备份文件」另存一份。'
+            }}
+          </p>
+        </header>
+
+        <div class="bk-actions">
+          <button type="button" class="btn primary" :disabled="bkBusy" @click="doExport">
+            <Icon name="i-download" :size="14" />
+            {{ bkBusy ? '处理中…' : '导出备份文件' }}
+          </button>
+          <button type="button" class="btn ghost" :disabled="bkBusy" @click="doAutoBackup">
+            <Icon name="i-file" :size="14" /> 立即备份一次
+          </button>
+          <label class="btn ghost bk-file">
+            <Icon name="i-upload" :size="14" /> 从备份恢复
+            <input id="bk-file" type="file" accept=".json,application/json" @change="onImportFile" />
+          </label>
+        </div>
+
+        <p v-if="bkPending" class="bk-confirm" :class="{ armed: bkArmed }">
+          <Icon name="i-warn" :size="14" />
+          <span>
+            恢复将<b>整包覆盖</b>当前数据（{{ bkPending.summary }}）。恢复前的数据会自动留一份。
+          </span>
+          <button type="button" class="btn primary sm" :disabled="!bkArmed" @click="doRestore(bkPending!.text)">
+            确认恢复
+          </button>
+          <button type="button" class="btn ghost sm" @click="bkPending = null">取消</button>
+        </p>
+
+        <div v-if="bkList.length" class="bk-list">
+          <div class="bk-head">
+            <span>自动备份（{{ desktop ? '本机磁盘' : '本机存储' }}，最近 {{ bkList.length }} 份）</span>
+            <span v-if="desktop && bkDir" class="bk-dir" :title="bkDir">{{ bkDir }}</span>
+          </div>
+          <div v-for="b in bkList" :key="b.key" class="bk-row">
+            <span class="bk-time">{{ fmtTime(b.at) }}</span>
+            <span class="bk-reason">{{ b.reason }}</span>
+            <span class="bk-size">{{ fmtSize(b.bytes) }}</span>
+            <button type="button" class="btn ghost sm" :disabled="bkBusy" @click="restoreFromList(b)">恢复</button>
+            <button type="button" class="btn ghost sm" @click="removeFromList(b)">删除</button>
+          </div>
+        </div>
+
+        <p v-if="bkHint" class="hint">{{ bkHint }}</p>
       </section>
 
       <!-- ================= 语音 ================= -->
@@ -594,6 +787,116 @@ input[type='range'] {
   color: var(--ink3);
   line-height: 1.5;
 }
+
+/* ---------- 数据备份 ---------- */
+
+.bk-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.bk-file input {
+  display: none;
+}
+
+.bk-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink2);
+}
+
+.bk-confirm svg {
+  fill: none;
+  stroke: var(--gold);
+  flex: none;
+}
+
+.bk-confirm.armed {
+  border-color: var(--accent-soft);
+}
+
+.bk-confirm b {
+  color: var(--ink);
+}
+
+.bk-confirm .btn {
+  flex: none;
+}
+
+.bk-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.bk-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--field);
+  font-size: 12px;
+  color: var(--ink3);
+}
+
+.bk-dir {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}
+
+.bk-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+}
+
+.bk-row:first-child {
+  border-top: none;
+}
+
+.bk-time {
+  font-family: var(--mono);
+  color: var(--ink2);
+  flex: none;
+}
+
+.bk-reason {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.bk-size {
+  color: var(--ink3);
+  flex: none;
+}
+
+.bk-row .btn {
+  flex: none;
+  padding: 4px 10px;
+  font-size: 12px;
+}
 /* ============================================================
  * 窄屏（手机）
  *
@@ -621,6 +924,26 @@ input[type='range'] {
   .chip {
     padding: 8px 14px;
     font-size: 13px;
+  }
+
+  /* 备份行在窄屏换行：时间/原因一行，按钮跟size一行 */
+  .bk-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .bk-reason {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .bk-head {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .bk-dir {
+    max-width: 100%;
   }
 }
 </style>

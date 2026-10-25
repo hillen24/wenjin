@@ -114,9 +114,10 @@ export class ReaderStore {
 
   /**
    * 载入一本自己的书。
+   * meta 可覆盖（文献研读导入的书标注「文献研读」，和手动载入的区分开）。
    * 失败原因回传成字符串而不是 toast —— 视图决定怎么显示，core 不关心 UI。
    */
-  addUserBook(fileName: string, text: string): AddBookResult {
+  addUserBook(fileName: string, text: string, metaOverride?: string): AddBookResult {
     if (text.length > MAX_BOOK_BYTES) {
       // 注意：以字符数近似字节数，中文占 3 字节，这里刻意放宽以免误杀
       return { ok: false, reason: '文件太大（超过 2MB），先换一本小一点的' };
@@ -130,7 +131,7 @@ export class ReaderStore {
     books.push({
       id,
       title,
-      meta: `我的书库 · 载入于 ${today()}`,
+      meta: metaOverride ?? `我的书库 · 载入于 ${today()}`,
       custom: true,
       paras,
     });
@@ -140,6 +141,21 @@ export class ReaderStore {
     }
     this.emit();
     return { ok: true, id, title, paras: paras.length };
+  }
+
+  /**
+   * 文献研读导入的书。
+   *
+   * 用户导入的文献，原文也要能读 —— 提取完方法论/概念就走的书是耍流氓。
+   * 按标题去重：同一本书反复导入不重复占书架，直接复用已存在那本。
+   */
+  addImportedBook(title: string, text: string): AddBookResult {
+    const clean = title.trim() || '未命名文献';
+    const dup = this.userBooks().find((b) => b.title === clean);
+    if (dup) {
+      return { ok: true, id: dup.id, title: dup.title, paras: dup.paras.length };
+    }
+    return this.addUserBook(`${clean}.txt`, text, `文献研读 · 导入于 ${today()}`);
   }
 
   removeUserBook(id: string): void {

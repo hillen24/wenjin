@@ -291,7 +291,7 @@ onBeforeUnmount(() => {
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .seal {
@@ -395,7 +395,11 @@ onBeforeUnmount(() => {
   min-height: 0;
   position: relative;
   overflow: hidden;
-  background: var(--bg);
+  /* 与电脑端同一套色雾：极淡，只是让大片留白不平 */
+  background:
+    radial-gradient(110% 80% at 85% -6%, rgba(125, 167, 217, 0.06), transparent 55%),
+    radial-gradient(80% 60% at 0% 102%, rgba(79, 209, 197, 0.05), transparent 52%),
+    var(--bg);
 }
 
 /* ---------- 底栏 ---------- */
@@ -407,6 +411,8 @@ onBeforeUnmount(() => {
   /* 同顶栏：不用半透明，避免 WebView 的合成层问题 */
   background: var(--bg2);
   border-top: 1px solid var(--line);
+  /* 底栏压住内容，给一道向上的软影 */
+  box-shadow: 0 -12px 30px -24px rgba(0, 0, 0, 0.6);
   /* 手势条：留出底部安全区 */
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -418,11 +424,19 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 3px;
   padding: 8px 0 7px;
+  /* 选中格的高亮底要定位在按钮里 */
+  position: relative;
   /* 手机上 10.5px 太细，压到看不清；用 ink2 而不是 ink3 保证对比度 */
   color: var(--ink2);
   font-size: 11px;
   letter-spacing: 0.02em;
   transition: color 0.16s var(--ease);
+}
+
+.m-tab svg,
+.m-tab span {
+  position: relative;
+  z-index: 1;
 }
 
 .m-tab svg {
@@ -440,6 +454,20 @@ onBeforeUnmount(() => {
 
 .m-tab.on {
   color: var(--accent);
+}
+
+/* 选中格再加一层极淡的底色，像被手指按住的那一格 */
+.m-tab.on::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 44px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  z-index: 0;
 }
 
 /* 提示条要抬到底部标签栏和手势条之上，否则会被压掉一半 */

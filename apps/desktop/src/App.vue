@@ -285,6 +285,9 @@ onBeforeUnmount(() => {
   background: var(--sb-bg);
   border-right: 1px solid var(--line);
   backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  /* 侧栏压在主区之上，给一道很轻的投影，层次才分得开 */
+  box-shadow: 18px 0 42px -28px rgba(0, 0, 0, 0.55);
 }
 
 .brand {
@@ -300,7 +303,7 @@ onBeforeUnmount(() => {
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
   /* 标记是填充图形，靠 currentColor 上色 */
   color: #fff;
@@ -394,6 +397,10 @@ onBeforeUnmount(() => {
 .nav-btn.on {
   background: var(--accent-soft);
   color: var(--accent);
+  /* 选中项做成一块微微浮起的 pill：一道受光的上边缘 + 一层软影 */
+  box-shadow:
+    inset 0 1px 0 var(--glass-hi),
+    0 4px 14px -8px rgba(0, 0, 0, 0.5);
 }
 
 /* 快捷键提示：平时藏着，hover 整条导航时才浮出来 */
@@ -561,7 +568,12 @@ onBeforeUnmount(() => {
   min-width: 0;
   position: relative;
   overflow: hidden;
-  background: var(--bg);
+  /* 主区加一层极淡的径向色雾：不是霓虹，是让大片留白不那么平。
+     两团颜色都取自既有语义色（钢蓝 / 玉青），暗度低到几乎察觉不到。 */
+  background:
+    radial-gradient(120% 90% at 82% -10%, rgba(125, 167, 217, 0.06), transparent 58%),
+    radial-gradient(90% 70% at 4% 104%, rgba(79, 209, 197, 0.05), transparent 55%),
+    var(--bg);
 }
 
 .fallback {

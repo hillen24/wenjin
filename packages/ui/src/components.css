@@ -15,10 +15,41 @@
 .panel {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 16px;
   box-shadow: var(--sh-card);
   transition: background-color 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+
+/* 视图里的内容卡片（各视图 scoped 样式已管背景和圆角，这里只补质感）：
+ * 一层柔和投影 + 一道「受光的上边缘」。inset 高光在暗色下是一丝冷白，
+ * 亮色下贴白卡片几乎不可见——都是刚好能感觉到、说不清在哪的程度。 */
+.card {
+  border-radius: var(--radius);
+  box-shadow: var(--sh-card), inset 0 1px 0 var(--glass-hi);
+}
+
+/* ============================================================
+ * 玻璃（浮层通用质感）
+ *
+ * 毛玻璃只给「浮在内容之上」的表面：弹窗、toast、吸顶条。
+ * 不透明度压在 0.74 以上是硬约束——再低，上面的文字对比度就开始塌。
+ * 不支持 backdrop-filter 的环境（老 WebView）自动退化为不透明卡片。
+ * ============================================================ */
+
+.glass {
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+@supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+  .glass {
+    background: var(--glass-bg);
+    border-color: var(--glass-line);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    box-shadow: var(--sh-float), inset 0 1px 0 var(--glass-hi);
+  }
 }
 
 .panel h3 {
@@ -86,12 +117,18 @@
   transition: filter 0.16s var(--ease), background 0.16s var(--ease);
 }
 
+/* 主按钮给一点浮起的投影：按下去时收掉，像真的按到某个面上 */
+.btn:not(.ghost):not(:disabled) {
+  box-shadow: var(--sh-float);
+}
+
 .btn:hover {
   filter: brightness(1.08);
 }
 
 .btn:active {
   transform: translateY(0.5px);
+  box-shadow: none;
 }
 
 .btn svg {
@@ -300,7 +337,8 @@
   place-items: center;
   padding: 40px 20px;
   background: var(--mask);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   animation: mask-in 0.18s var(--ease);
 }
 
@@ -310,11 +348,24 @@
   max-height: 100%;
   overflow-y: auto;
   padding: 26px 28px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--card);
   border: 1px solid var(--line);
   box-shadow: var(--sh-pop);
   animation: modal-in 0.2s var(--ease);
+}
+
+/* 弹窗是真正「浮在内容之上」的东西，给它玻璃：
+ * 底下透出一点模糊的内容，比一块死板的实色板有呼吸感。
+ * 不支持 backdrop-filter 的环境保留实色板。 */
+@supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+  .modal {
+    background: var(--glass-bg);
+    border-color: var(--glass-line);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    box-shadow: var(--sh-pop), inset 0 1px 0 var(--glass-hi);
+  }
 }
 
 .modal h3 {
@@ -472,7 +523,7 @@
   bottom: 32px;
   z-index: 80;
   padding: 10px 20px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--ink);
   color: var(--bg);
   font-size: 12.5px;
@@ -483,7 +534,7 @@
   transform: translate(-50%, 12px) scale(0.96);
   opacity: 0;
   pointer-events: none;
-  box-shadow: var(--sh-card);
+  box-shadow: var(--sh-float);
   transition:
     opacity 0.2s var(--ease),
     transform 0.24s var(--ease);

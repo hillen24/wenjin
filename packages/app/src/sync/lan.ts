@@ -17,24 +17,9 @@ import {
   type SnapshotStats,
   type SyncSnapshot,
 } from '@wenjin/core';
+import type { LanBridge, LanInfo } from './backup';
 
-/** 电脑端 preload 注入的桥。手机端的 window 上没有这个对象。 */
-export interface LanBridge {
-  desktop: true;
-  /** 地址信息（本机 IPv4 + 端口 + 版本） */
-  info(): Promise<LanInfo>;
-  /** 把本机快照交给主进程，供手机拉取 */
-  pushSnapshot(snap: SyncSnapshot): void;
-  /** 手机推上来的数据 */
-  onIncoming(cb: (raw: unknown) => void): void;
-}
-
-export interface LanInfo {
-  ip: string;
-  port: number;
-  host: string;
-  version: string;
-}
+export type { LanBridge, LanInfo };
 
 export interface PingInfo {
   app: string;
@@ -44,12 +29,6 @@ export interface PingInfo {
   hasData: boolean;
   cards: number;
   books: number;
-}
-
-declare global {
-  interface Window {
-    wjBridge?: LanBridge;
-  }
 }
 
 /** 电脑地址存在本机，不跟着快照同步（core/sync 里已把它列为本机专有键） */

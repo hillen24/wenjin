@@ -33,7 +33,137 @@ if (process.env.ELECTRON_RUN_AS_NODE) {
 const path = require('path');
 const http = require('http');
 const os = require('os');
-const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const fs = require('fs');
+const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
+
+/* ============================================================
+ * 数据备份（磁盘文件）
+ *
+ * 渲染进程的 localStorage 有 5MB 配额且换台电脑就没了，真正的备份
+ * 必须是本机磁盘上的文件。目录取 userData/backups（便携版也在
+ * %APPDATA% 下，卸载软件不会误删用户数据）。
+ * ============================================================ */
+
+const MAX_DISK_BACKUPS = 10;
+
+/** 备份文件名白名单：只认我们自己的命名，挡掉路径穿越 */
+const BACKUP_NAME_RE = /^wj-backup-[\w\u4e00-\u9fa5-]+\.json$/;
+
+function backupDir() {
+  const dir = path.join(app.getPath('userData'), 'backups');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function safeReason(r) {
+  return (
+    String(r || 'backup')
+      .replace(/[\\/:*?"<>|\s]+/g, '-')
+      .slice(0, 20) || 'backup'
+  );
+}
+
+function backupStamp(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+/** 按 mtime 排序，只留最近 MAX_DISK_BACKUPS 份 */
+function pruneDiskBackups() {
+  try {
+    const dir = backupDir();
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => BACKUP_NAME_RE.test(f))
+      .map((f) => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs }))
+      .sort((a, b) => a.t - b.t);
+    while (files.length > MAX_DISK_BACKUPS) {
+      const old = files.shift();
+      if (old) fs.unlinkSync(path.join(dir, old.f));
+    }
+  } catch {
+    /* 清理失败不影响备份本身 */
+  }
+}
+
+ipcMain.handle('wj:backupDir', () => backupDir());
+
+ipcMain.handle('wj:saveBackup', (_e, text, reason) => {
+  try {
+    const dir = backupDir();
+    const name = `wj-backup-${backupStamp(new Date())}-${safeReason(reason)}.json`;
+    fs.writeFileSync(path.join(dir, name), String(text), 'utf8');
+    pruneDiskBackups();
+    return { ok: true, name, path: path.join(dir, name) };
+  } catch (e) {
+    return { ok: false, reason: `写备份失败：${e.message}` };
+  }
+});
+
+ipcMain.handle('wj:listBackups', () => {
+  try {
+    const dir = backupDir();
+    const out = [];
+    for (const f of fs.readdirSync(dir)) {
+      if (!BACKUP_NAME_RE.test(f)) continue;
+      const full = path.join(dir, f);
+      const st = fs.statSync(full);
+      let at = st.mtimeMs;
+      let reason = '';
+      try {
+        const snap = JSON.parse(fs.readFileSync(full, 'utf8'));
+        if (typeof snap.at === 'number') at = snap.at;
+        if (typeof snap.reason === 'string') reason = snap.reason;
+      } catch {
+        reason = '（损坏）';
+      }
+      out.push({ name: f, at, reason, bytes: st.size });
+    }
+    return out.sort((a, b) => b.at - a.at);
+  } catch {
+    return [];
+  }
+});
+
+ipcMain.handle('wj:readBackup', (_e, name) => {
+  if (typeof name !== 'string' || !BACKUP_NAME_RE.test(name)) {
+    return { ok: false, reason: '文件名不合法' };
+  }
+  try {
+    return { ok: true, text: fs.readFileSync(path.join(backupDir(), name), 'utf8') };
+  } catch (e) {
+    return { ok: false, reason: `读备份失败：${e.message}` };
+  }
+});
+
+ipcMain.handle('wj:deleteBackup', (_e, name) => {
+  if (typeof name !== 'string' || !BACKUP_NAME_RE.test(name)) {
+    return { ok: false, reason: '文件名不合法' };
+  }
+  try {
+    fs.unlinkSync(path.join(backupDir(), name));
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: `删除失败：${e.message}` };
+  }
+});
+
+/** 导出备份文件：弹系统另存为，用户自己选位置（U 盘 / 网盘目录） */
+ipcMain.handle('wj:exportBackup', async (_e, defaultName, text) => {
+  const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  const r = await dialog.showSaveDialog(win, {
+    title: '导出备份',
+    defaultPath: defaultName || '致知备份.json',
+    filters: [{ name: '致知备份', extensions: ['json'] }],
+  });
+  if (r.canceled || !r.filePath) return { canceled: true };
+  try {
+    fs.writeFileSync(r.filePath, String(text), 'utf8');
+    return { ok: true, path: r.filePath };
+  } catch (e) {
+    return { ok: false, reason: `写入失败：${e.message}` };
+  }
+});
 
 /* ============================================================
  * 局域网同步服务
@@ -273,4 +403,19 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (syncServer) syncServer.close();
   if (process.platform !== 'darwin') app.quit();
+});
+
+/* 退出前最后一份备份。数据在渲染进程的 localStorage 里，主进程手里的 latest
+   是最新推送的快照（每 2 秒或有变化就推一次）——写它，比在渲染进程的
+   beforeunload 里发起异步写更可靠（窗口关了写盘可能被腰斩）。 */
+app.on('before-quit', () => {
+  if (!latest) return;
+  try {
+    const dir = backupDir();
+    const name = `wj-backup-${backupStamp(new Date())}-退出前.json`;
+    fs.writeFileSync(path.join(dir, name), JSON.stringify({ ...latest, reason: '退出前' }), 'utf8');
+    pruneDiskBackups();
+  } catch {
+    /* 备份失败不该拦住退出 */
+  }
 });

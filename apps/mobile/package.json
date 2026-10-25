@@ -1,6 +1,6 @@
 {
   "name": "@wenjin/mobile",
-  "version": "3.8.0",
+  "version": "3.9.0",
   "private": true,
   "description": "致知 · 思想栖所（手机端），Capacitor 封装",
   "author": "wenjin",

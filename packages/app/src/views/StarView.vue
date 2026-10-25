@@ -1412,9 +1412,15 @@ onBeforeUnmount(() => {
     max-height: 54vh;
     padding: 6px 16px 20px;
     border-left: 0;
-    border-top: 1px solid var(--line);
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.34);
+    border-top: 1px solid var(--glass-line);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    /* 底部浮层是真正盖在星图上的东西：给玻璃，透出下面的一点星点 */
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    box-shadow:
+      0 -18px 44px rgba(0, 0, 0, 0.38),
+      inset 0 1px 0 var(--glass-hi);
     transform: translateY(102%);
     transition: transform 0.26s var(--ease);
     z-index: 3;
@@ -1498,10 +1504,14 @@ onBeforeUnmount(() => {
   max-height: min(86vh, 640px);
   overflow-y: auto;
   padding: 18px 20px 20px;
-  border-radius: var(--radius-md, 14px);
-  background: var(--card);
-  border: 1px solid var(--line);
-  box-shadow: var(--sh-pop, 0 18px 48px rgba(0, 0, 0, 0.4));
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-line);
+  box-shadow:
+    var(--sh-pop),
+    inset 0 1px 0 var(--glass-hi);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1835,7 +1845,14 @@ label.full {
   .builder-card {
     width: 100%;
     max-height: 78vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    border-color: var(--glass-line);
+    box-shadow:
+      0 -18px 44px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 var(--glass-hi);
   }
 
   .form-grid {

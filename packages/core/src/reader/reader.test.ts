@@ -29,7 +29,7 @@ describe('书架', () => {
   it('内置原著在前', () => {
     const s = store();
     const shelf = s.shelf();
-    expect(shelf.map((d) => d.id)).toEqual(['epictetus', 'zhuangzi', 'laotzi', 'lunyu', 'xiaoyao', 'daxue', 'pico', 'petrarch', 'montaigne', 'simaqian', 'wenrtxiang']);
+    expect(shelf.map((d) => d.id)).toEqual(['epictetus', 'zhuangzi', 'laotzi', 'ddjFull', 'lunyu', 'xiaoyao', 'zzFull', 'daxue', 'pico', 'picoFull', 'petrarch', 'montaigne', 'simaqian', 'wenrtxiang']);
     expect(shelf.every((d) => !d.custom)).toBe(true);
   });
 
@@ -40,10 +40,10 @@ describe('书架', () => {
     if (!r.ok) return;
 
     const shelf = s.shelf();
-    expect(shelf).toHaveLength(12);
-    expect(shelf[11]!.custom).toBe(true);
-    expect(shelf[11]!.title).toBe('我的笔记');
-    expect(shelf[11]!.paras).toEqual(['第一段', '第二段']);
+    expect(shelf).toHaveLength(15);
+    expect(shelf[14]!.custom).toBe(true);
+    expect(shelf[14]!.title).toBe('我的笔记');
+    expect(shelf[14]!.paras).toEqual(['第一段', '第二段']);
   });
 
   it('空文件拒收并说明原因', () => {
@@ -51,6 +51,30 @@ describe('书架', () => {
     const r = s.addUserBook('空.txt', '   ');
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toContain('有效文本');
+  });
+
+  it('文献研读导入的书：按标题去重，meta 标注来源', () => {
+    const s = store();
+    const r1 = s.addImportedBook('理想国', '第一段\n\n第二段');
+    expect(r1.ok).toBe(true);
+    if (!r1.ok) return;
+    expect(r1.title).toBe('理想国');
+
+    const b = s.userBooks()[0]!;
+    expect(b.meta).toContain('文献研读');
+    expect(b.meta).toContain('导入于');
+
+    // 同一本再导入：不重复占书架，直接复用
+    const r2 = s.addImportedBook('理想国', '换了内容的第一段\n\n第二段');
+    expect(r2.ok).toBe(true);
+    if (!r2.ok) return;
+    expect(r2.id).toBe(r1.id);
+    expect(s.userBooks()).toHaveLength(1);
+
+    // 空标题兜底
+    const r3 = s.addImportedBook('  ', 'x\n\ny');
+    expect(r3.ok).toBe(true);
+    if (r3.ok) expect(r3.title).toBe('未命名文献');
   });
 
   it('找不到的书返回 undefined，而不是悄悄给另一本', () => {
@@ -64,7 +88,7 @@ describe('书架', () => {
     const r = s.addUserBook('a.txt', 'x\n\ny');
     if (!r.ok) throw new Error('准备失败');
     s.removeUserBook(r.id);
-    expect(s.shelf().map((d) => d.id)).toEqual(['epictetus', 'zhuangzi', 'laotzi', 'lunyu', 'xiaoyao', 'daxue', 'pico', 'petrarch', 'montaigne', 'simaqian', 'wenrtxiang']);
+    expect(s.shelf().map((d) => d.id)).toEqual(['epictetus', 'zhuangzi', 'laotzi', 'ddjFull', 'lunyu', 'xiaoyao', 'zzFull', 'daxue', 'pico', 'picoFull', 'petrarch', 'montaigne', 'simaqian', 'wenrtxiang']);
   });
 });
 

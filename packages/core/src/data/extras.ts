@@ -22,15 +22,23 @@ export const CARD_LABELS: Record<string, string> = {
   default: '下一步最小行动',
 };
 
-/** 内置原著。用户自己载入的书排在其后。 */
+/**
+ * 内置原著。用户自己载入的书排在其后。
+ *
+ * 3.9.0：三部完整公版书插入在对应节选之后（ddjFull 跟 laotzi、
+ * zzFull 跟 xiaoyao、picoFull 跟 pico）——先尝浅，再读全。
+ */
 export const BUILTIN_DOCS: readonly string[] = [
   'epictetus',
   'zhuangzi',
   'laotzi',
+  'ddjFull',
   'lunyu',
   'xiaoyao',
+  'zzFull',
   'daxue',
   'pico',
+  'picoFull',
   'petrarch',
   'montaigne',
   'simaqian',
