@@ -104,9 +104,76 @@ function update<K extends keyof Settings>(key: K, value: Settings[K]): void {
   core.settings.patch(patch);
 }
 
+/**
+ * 文本框的实时保存。
+ *
+ * ===== 为什么是 @input 而不是 @change =====
+ *
+ * 旧版用 @change —— **失焦才触发**。于是有个很典型的丢值场景：
+ *
+ *   在「API Key」里敲完字 → 直接切到别的页面 / 关掉应用
+ *   → 输入框还没失焦（或卸载时不派发 change）→ **值根本没写盘**
+ *   → 下次打开，Key 是空的
+ *
+ * 用户看到的现象就是「我明明填了，怎么保存不住」。
+ *
+ * 这个坑能活很久，是因为自动化测试大多用 `fill()` —— Playwright 的 fill
+ * 会额外派发一次 change，看起来一切正常；真实逐字输入（`type()`）才暴露。
+ *
+ * 所以文本框一律 @input：每次按键都写盘。设置对象很小（几百字节），
+ * 每敲一个字写一次 localStorage 不心疼，比丢用户数据划算。
+ *
+ * select / checkbox 仍然用 @change —— 它们是「选完即定」，没有中间态。
+ */
 function onText(key: 'baseURL' | 'apiKey' | 'model' | 'ttsBaseURL', e: Event): void {
   const v = (e.target as HTMLInputElement).value;
   update(key, v);
+  markSaved();
+}
+
+/** TTS 字段的实时保存，语义同上。 */
+function onTtsText(key: string, e: Event): void {
+  const v = (e.target as HTMLInputElement | HTMLTextAreaElement).value;
+  core.settings.patch({ [key]: v } as SettingsPatch);
+  ttsHint.value = '';
+  markSaved();
+}
+
+/**
+ * 清除已保存的 Key。
+ *
+ * 为什么需要单独的按钮：密码框回显的是已保存的值，
+ * 用户想删掉它，得先手动选中全部删除 —— 很容易漏。
+ */
+function clearKey(key: 'apiKey' | 'ttsApiKey'): void {
+  core.settings.patch({ [key]: '' });
+  markSaved();
+}
+
+/**
+ * 「已保存」提示
+ *
+ * 实时保存最大的副作用是：用户没有反馈，不知道到底存没存。
+ * 这里给一个短暂的绿色提示，2 秒后自动消失。
+ * 写盘失败（配额满 / 隐私模式）则转成红色常驻 —— 那种情况必须让用户知道。
+ */
+const savedFlash = ref('');
+const persistError = ref('');
+let savedTimer = 0;
+
+function markSaved(): void {
+  const err = core.settings.persistError;
+  if (err) {
+    persistError.value = err;
+    savedFlash.value = '';
+    return;
+  }
+  persistError.value = '';
+  savedFlash.value = '已保存';
+  window.clearTimeout(savedTimer);
+  savedTimer = window.setTimeout(() => {
+    savedFlash.value = '';
+  }, 2000);
 }
 
 async function fetchModels(): Promise<void> {
@@ -197,12 +264,6 @@ const engineNote = computed(() => ENGINES.find((e) => e.key === s.value.ttsEngin
 
 /** 当前服务商推荐的音色（供下拉选择）。自定义服务商没有预设。 */
 const presetVoices = computed(() => ttsProviderDef.value.voices ?? []);
-
-function onTtsText(key: string, e: Event): void {
-  const v = (e.target as HTMLInputElement | HTMLTextAreaElement).value;
-  core.settings.patch({ [key]: v } as SettingsPatch);
-  ttsHint.value = '';
-}
 
 async function testTts(): Promise<void> {
   ttsTesting.value = true;
@@ -358,12 +419,23 @@ async function removeFromList(b: AutoBackupInfo): Promise<void> {
 onBeforeUnmount(() => {
   offSettings();
   offAi();
+  window.clearTimeout(savedTimer);
 });
 </script>
 
 <template>
   <div class="settings">
     <div class="inner">
+      <!-- 保存状态条：实时保存后给个反馈；写盘失败则常驻红条 -->
+      <div v-if="persistError" class="save-bar bad">
+        <Icon name="i-warn" :size="14" />
+        {{ persistError }}
+      </div>
+      <div v-else-if="savedFlash" class="save-bar ok">
+        <Icon name="i-check" :size="14" />
+        {{ savedFlash }}
+      </div>
+
       <!-- ================= AI 服务 ================= -->
       <section>
         <header>
@@ -401,7 +473,7 @@ onBeforeUnmount(() => {
             :value="s.baseURL"
             placeholder="https://api.deepseek.com/v1"
             spellcheck="false"
-            @change="onText('baseURL', $event)"
+            @input="onText('baseURL', $event)"
           />
         </div>
 
@@ -409,17 +481,26 @@ onBeforeUnmount(() => {
           <label for="key">
             API Key
             <span v-if="!currentProvider?.key" class="opt">本地服务不需要</span>
+            <span v-else-if="s.apiKey" class="opt saved">已保存 {{ s.apiKey.length }} 位</span>
           </label>
           <input
             id="key"
             type="password"
             :value="s.apiKey"
             :disabled="!currentProvider?.key"
-            placeholder="sk-…"
+            :placeholder="s.apiKey ? '已保存 · 输入新值可替换' : 'sk-…'"
             spellcheck="false"
             autocomplete="off"
-            @change="onText('apiKey', $event)"
+            @input="onText('apiKey', $event)"
           />
+          <button
+            v-if="s.apiKey"
+            type="button"
+            class="btn ghost"
+            @click="clearKey('apiKey')"
+          >
+            清除 API Key
+          </button>
         </div>
 
         <div class="field">
@@ -431,7 +512,7 @@ onBeforeUnmount(() => {
               :value="s.model"
               placeholder="deepseek-chat"
               spellcheck="false"
-              @change="onText('model', $event)"
+              @input="onText('model', $event)"
             />
             <button type="button" class="btn ghost" :disabled="fetching" @click="fetchModels">
               <Icon name="i-refresh" :size="14" />
@@ -601,7 +682,7 @@ onBeforeUnmount(() => {
             :value="s.ttsBaseURL"
             placeholder="http://127.0.0.1:8787/v1"
             spellcheck="false"
-            @change="onText('ttsBaseURL', $event)"
+            @input="onText('ttsBaseURL', $event)"
           />
           <p class="note">
             电脑本机用 <code>http://127.0.0.1:8787/v1</code>；
@@ -637,23 +718,34 @@ onBeforeUnmount(() => {
               :value="s.ttsApiBase"
               :placeholder="ttsProviderDef.base || 'https://…/v1'"
               spellcheck="false"
-              @change="onTtsText('ttsApiBase', $event)"
+              @input="onTtsText('ttsApiBase', $event)"
             />
             <p class="note">要带 /v1 这类前缀。留空则用服务商的默认地址。</p>
           </div>
 
           <div class="field">
-            <label for="ttsKey">API Key</label>
+            <label for="ttsKey">
+              API Key
+              <span v-if="s.ttsApiKey" class="opt saved">已保存 {{ s.ttsApiKey.length }} 位</span>
+            </label>
             <input
               id="ttsKey"
               type="password"
               :value="s.ttsApiKey"
-              placeholder="sk-…"
+              :placeholder="s.ttsApiKey ? '已保存 · 输入新值可替换' : 'sk-…'"
               spellcheck="false"
               autocomplete="off"
-              @change="onTtsText('ttsApiKey', $event)"
+              @input="onTtsText('ttsApiKey', $event)"
             />
             <p class="note">只存在这台设备上，不会上传到别处。</p>
+            <button
+              v-if="s.ttsApiKey"
+              type="button"
+              class="btn ghost"
+              @click="clearKey('ttsApiKey')"
+            >
+              清除 API Key
+            </button>
           </div>
 
           <div class="field">
@@ -664,7 +756,7 @@ onBeforeUnmount(() => {
               :value="s.ttsApiModel"
               :placeholder="ttsProviderDef.model || '模型名'"
               spellcheck="false"
-              @change="onTtsText('ttsApiModel', $event)"
+              @input="onTtsText('ttsApiModel', $event)"
             />
           </div>
 
@@ -737,7 +829,7 @@ onBeforeUnmount(() => {
                 :value="s.ttsApiPath"
                 placeholder="/audio/speech"
                 spellcheck="false"
-                @change="onTtsText('ttsApiPath', $event)"
+                @input="onTtsText('ttsApiPath', $event)"
               />
               <p class="note">也可直接填完整 URL。默认 /audio/speech（OpenAI 兼容）。</p>
             </div>
@@ -750,7 +842,7 @@ onBeforeUnmount(() => {
                 :value="s.ttsApiHeaders"
                 placeholder='{"api-key": "xxx"}'
                 spellcheck="false"
-                @change="onTtsText('ttsApiHeaders', $event)"
+                @input="onTtsText('ttsApiHeaders', $event)"
               />
               <p class="note">JSON 对象。给 Azure 之类非 Bearer 认证用。</p>
             </div>
@@ -763,7 +855,7 @@ onBeforeUnmount(() => {
                 :value="s.ttsApiBody"
                 placeholder='{"gain": 0, "sample_rate": 32000}'
                 spellcheck="false"
-                @change="onTtsText('ttsApiBody', $event)"
+                @input="onTtsText('ttsApiBody', $event)"
               />
               <p class="note">JSON 对象，会并进请求体。siliconflow 的 gain / sample_rate 在这儿填。</p>
             </div>
@@ -857,6 +949,58 @@ header p {
   margin-bottom: 18px;
   background: var(--field);
   border: 1px solid var(--line);
+}
+
+/* ---------- 保存状态条 ---------- */
+
+/*
+ * 实时保存后给个反馈。
+ *
+ * 实时保存最大的副作用是「用户不知道存没存」—— 填完一串 Key，
+ * 界面上毫无变化，用户只能靠猜。这里给一个 2 秒的绿色提示。
+ *
+ * 写盘失败（配额满 / 隐私模式）必须常驻红色：
+ * 那种情况下如果不告诉用户，他重启应用发现配置没了，
+ * 会以为是自己记错了，然后重新填一遍 —— 还是存不进去。
+ */
+.save-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--ink2);
+}
+
+.save-bar svg {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.save-bar.ok {
+  border-color: var(--jade-soft);
+  background: var(--jade-soft);
+  color: var(--jade-deep);
+}
+
+.save-bar.bad {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--red);
+}
+
+/* 标签右侧的「已保存 N 位」小标记 */
+.opt.saved {
+  color: var(--jade-deep);
 }
 
 .state .dot {

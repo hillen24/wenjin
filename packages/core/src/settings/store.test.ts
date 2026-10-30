@@ -171,3 +171,123 @@ describe('持久化', () => {
     expect(s.ttsEdgeVoice).toBe(DEFAULT_SETTINGS.ttsEdgeVoice);
   });
 });
+
+/**
+ * 逐字输入的持久化
+ *
+ * ===== 这组测试在钉什么 =====
+ *
+ * 2026-10-30 的 bug：设置页的文本框绑的是 `@change`（**失焦才触发**）。
+ * 用户在「API Key」里敲完字就直接切页 / 关应用 → 输入框还没失焦 →
+ * **change 不触发 → 值根本没写盘** → 下次打开是空的。
+ *
+ * 修法：文本框改绑 `@input`（每次按键都存）。这组测试断言「每个中间态
+ * 都真的落盘了」—— 因为 UI 层的 @input 绑定在 node 环境里测不到，
+ * 只能在 core 层保证「patch 一次 = 写一次盘」这个前提成立。
+ */
+describe('逐字输入：每个中间态都要落盘', () => {
+  it('连续 patch 模拟逐字输入，最后的值和中间值都在盘上', () => {
+    const storage = new MemoryStorage();
+    const store = newStore(storage);
+
+    // 模拟用户一个字符一个字符地敲 'sk-abc'
+    for (const partial of ['s', 'sk', 'sk-', 'sk-a', 'sk-ab', 'sk-abc']) {
+      store.patch({ ttsApiKey: partial });
+    }
+
+    // 重新建一个 store 读盘（等于重启应用）
+    const reopened = newStore(storage);
+    expect(reopened.get().ttsApiKey).toBe('sk-abc');
+  });
+
+  it('中途状态也能读回来（不是只存最后一次）', () => {
+    const storage = new MemoryStorage();
+    const store = newStore(storage);
+
+    store.patch({ ttsApiKey: 'sk-a' });
+    const midway = newStore(storage);
+    expect(midway.get().ttsApiKey).toBe('sk-a');
+
+    store.patch({ ttsApiKey: 'sk-abc' });
+    const after = newStore(storage);
+    expect(after.get().ttsApiKey).toBe('sk-abc');
+  });
+
+  it('TTS 全部自定义字段都参与持久化', () => {
+    const storage = new MemoryStorage();
+    const store = newStore(storage);
+
+    store.patch({
+      ttsEngine: 'custom',
+      ttsProvider: 'siliconflow',
+      ttsApiBase: 'https://api.siliconflow.cn/v1',
+      ttsApiKey: 'sk-tts',
+      ttsApiModel: 'FunAudioLLM/CosyVoice2-0.5B',
+      ttsApiVoice: 'anna',
+      ttsApiFormat: 'wav',
+      ttsApiPath: '/audio/speech',
+      ttsApiHeaders: '{"api-key":"x"}',
+      ttsApiBody: '{"gain":-2}',
+    });
+
+    const reopened = newStore(storage).get();
+    expect(reopened.ttsEngine).toBe('custom');
+    expect(reopened.ttsProvider).toBe('siliconflow');
+    expect(reopened.ttsApiBase).toBe('https://api.siliconflow.cn/v1');
+    expect(reopened.ttsApiKey).toBe('sk-tts');
+    expect(reopened.ttsApiModel).toBe('FunAudioLLM/CosyVoice2-0.5B');
+    expect(reopened.ttsApiVoice).toBe('anna');
+    expect(reopened.ttsApiFormat).toBe('wav');
+    expect(reopened.ttsApiPath).toBe('/audio/speech');
+    expect(reopened.ttsApiHeaders).toBe('{"api-key":"x"}');
+    expect(reopened.ttsApiBody).toBe('{"gain":-2}');
+  });
+
+  it('AI 那边的地址 / Key / 模型同样逐字落盘', () => {
+    const storage = new MemoryStorage();
+    const store = newStore(storage);
+
+    for (const partial of ['h', 'ht', 'htt', 'http://x/v1']) {
+      store.patch({ baseURL: partial });
+    }
+    store.patch({ apiKey: 'sk-ai' });
+    store.patch({ model: 'deepseek-chat' });
+
+    const reopened = newStore(storage).get();
+    expect(reopened.baseURL).toBe('http://x/v1');
+    expect(reopened.apiKey).toBe('sk-ai');
+    expect(reopened.model).toBe('deepseek-chat');
+  });
+
+  it('写盘失败时 lastError 有值，UI 拿得到', () => {
+    // 模拟 localStorage 写不进去（配额满 / 隐私模式）
+    const broken = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('QuotaExceededError');
+      },
+      removeItem: () => {},
+    };
+    const store = new SettingsStore(new KeyValueStore(broken));
+
+    store.patch({ ttsApiKey: 'sk-x' });
+
+    expect(store.persistError).toContain('保存');
+    expect(store.persistError).toContain('QuotaExceededError');
+  });
+
+  it('写盘失败不影响内存里的值（用户这次输入不白费）', () => {
+    const broken = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('QuotaExceededError');
+      },
+      removeItem: () => {},
+    };
+    const store = new SettingsStore(new KeyValueStore(broken));
+
+    store.patch({ ttsApiKey: 'sk-x' });
+
+    expect(store.get().ttsApiKey).toBe('sk-x');
+  });
+});
