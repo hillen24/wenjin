@@ -14,12 +14,16 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { Icon } from '@wenjin/ui';
 import {
   BASE_VIEW,
+  PHILOSOPHERS,
   RELATION_NAME,
   STAR_EDGES,
   STAR_NODES,
   blindSpots,
   buildAiPrompt,
+  describePath,
+  filterNodes,
   initBodies,
+  isFilterActive,
   nameToId,
   neighborIds,
   nodeRadius,
@@ -27,10 +31,15 @@ import {
   relatedEdges,
   relayout,
   screenToView,
+  searchNodes,
+  shortestPath,
   step,
+  allSchools,
   zoomView,
+  EMPTY_FILTER,
   type CustomGraph,
   type EdgeRelation,
+  type FilterState,
   type NodeKind,
   type StarBody,
   type StarEdge,
@@ -160,6 +169,254 @@ const groupedNodes = computed(() => {
   return [...map.entries()].map(([school, list]) => ({ school, list }));
 });
 
+/* ---------------- 搜索与筛选（3.10.0） ---------------- */
+
+/**
+ * 52 个节点，光靠眼睛扫是找不到的。
+ *
+ * 搜索和筛选是两种不同的找法：
+ * - 搜索：我知道我要找什么（「康德」），直接给结果
+ * - 筛选：我想看看某一类（「先秦中国的都点亮了吗」），缩小范围慢慢看
+ *
+ * 两者叠加时不冲突：先筛后搜。筛掉了的节点搜也搜不出来 ——
+ * 否则用户会困惑「明明有结果却看不见」。
+ */
+const searchText = ref('');
+const searchOpen = ref(false);
+const searchInput = ref<HTMLInputElement | null>(null);
+const filter = ref<FilterState>({ ...EMPTY_FILTER });
+const filterOpen = ref(false);
+
+const schools = computed(() => allSchools(allNodes.value));
+
+/** 先按筛选条件筛，再按搜索词搜 */
+const visibleNodes = computed(() =>
+  filterNodes(allNodes.value, filter.value, {
+    litIds: litIds.value,
+    customIds: customIds.value,
+  }),
+);
+
+/**
+ * 搜索永远搜**全图**，不受筛选影响。
+ *
+ * 一开始写成「在筛选结果里搜」，结果有个坑：用户筛着「先秦中国」，
+ * 又搜「康德」→ 显示「没有匹配的节点」→ 他会以为康德不在星图里，
+ * 而实际上只是被自己的筛选挡住了。
+ *
+ * 现在搜全图，被筛选挡住的命中项会标一行「不在当前筛选内」，
+ * 点它自动清掉筛选再跳过去 —— 用户永远能得到他想要的那个节点。
+ */
+const hits = computed(() => searchNodes(allNodes.value, searchText.value));
+
+/** 当前筛选范围内的节点 id，给搜索结果的「不在筛选内」标记用 */
+const inFilterSet = computed(() => new Set(visibleNodes.value.map((n) => n.id)));
+
+/**
+ * 命中集合：null 表示「没有搜索」，视图不需要变暗任何东西。
+ * 空数组表示「搜了但没结果」—— 这时候要全部变暗，并提示无结果。
+ */
+const hitSet = computed<ReadonlySet<string> | null>(() => {
+  if (!searchText.value.trim()) return null;
+  return new Set(hits.value.map((h) => h.node.id));
+});
+
+/** 筛掉的节点集合在 focusSet 里统一处理，这里只算边数给筛选面板报数 */
+const visibleEdgeCount = computed(() => {
+  const shown = new Set(visibleNodes.value.map((n) => n.id));
+  return allEdges.value.filter(([a, b]) => shown.has(a) && shown.has(b)).length;
+});
+
+const filterActive = computed(() => isFilterActive(filter.value));
+
+function toggleSchool(school: string): void {
+  const cur = filter.value.schools;
+  filter.value = {
+    ...filter.value,
+    schools: cur.includes(school) ? cur.filter((s) => s !== school) : [...cur, school],
+  };
+}
+
+function toggleKind(kind: NodeKind): void {
+  const cur = filter.value.kinds;
+  filter.value = {
+    ...filter.value,
+    kinds: cur.includes(kind) ? cur.filter((k) => k !== kind) : [...cur, kind],
+  };
+}
+
+function setStatus(status: FilterState['status']): void {
+  filter.value = { ...filter.value, status };
+}
+
+function resetFilter(): void {
+  filter.value = { ...EMPTY_FILTER };
+}
+
+function clearSearch(): void {
+  searchText.value = '';
+  searchOpen.value = false;
+}
+
+/** 点搜索结果：选中并居中 */
+function pickHit(id: string): void {
+  // 被筛选挡住的命中项：先清筛选，否则跳过去以后节点还是暗的
+  if (filterActive.value && !inFilterSet.value.has(id)) {
+    resetFilter();
+    nav.toast('已清掉筛选，让你看到这个节点');
+  }
+  selectedId.value = id;
+  panelOpen.value = true;
+  centerOn(id);
+  searchOpen.value = false;
+}
+
+/** 把某个节点移到视口中央（保留当前缩放） */
+function centerOn(id: string): void {
+  const b = bodies.value[id];
+  if (!b) return;
+  view.value = {
+    ...view.value,
+    x: b.x - view.value.w / 2,
+    y: b.y - view.value.h / 2,
+  };
+}
+
+/* ---------------- 两节点寻路（3.10.0） ---------------- */
+
+/**
+ * 「这两个概念怎么连起来的」。
+ *
+ * 交互设计：选中 A → 点「找关系」→ 图上提示「再点一个节点」→ 点 B → 高亮路径。
+ * 用「两步点击」而不是两个下拉框，因为目标靠视觉找比靠名字找快得多。
+ */
+const pathFrom = ref<string | null>(null);
+const pathResult = ref<ReturnType<typeof shortestPath>>(null);
+const pathNote = ref('');
+
+const pathNodeSet = computed<ReadonlySet<string>>(
+  () => new Set(pathResult.value?.nodes ?? []),
+);
+
+/** 路径上的边（用「无序对」匹配，因为有向元组可能反着存） */
+const pathEdgeKeys = computed<ReadonlySet<string>>(() => {
+  const p = pathResult.value;
+  if (!p) return new Set<string>();
+  const keys = new Set<string>();
+  p.hops.forEach((h) => keys.add(h.from < h.to ? `${h.from}|${h.to}` : `${h.to}|${h.from}`));
+  return keys;
+});
+
+function startPath(): void {
+  if (!selectedId.value) return;
+  pathFrom.value = selectedId.value;
+  pathResult.value = null;
+  pathNote.value = `已选「${selected.value?.name}」，再点一个节点看它们怎么连起来`;
+}
+
+function cancelPath(): void {
+  pathFrom.value = null;
+  pathResult.value = null;
+  pathNote.value = '';
+}
+
+/** 寻路的第二跳。已经在选起点状态下，点任意节点就当成终点。 */
+function completePath(toId: string): void {
+  const from = pathFrom.value;
+  if (!from) return;
+  if (from === toId) {
+    pathNote.value = '同一个节点，换个别的';
+    return;
+  }
+  const r = shortestPath(allEdges.value, from, toId);
+  pathFrom.value = null;
+  if (!r) {
+    pathResult.value = null;
+    pathNote.value = '这两个概念在现有星图上没有连通的路径 —— 也许正该由你来连一条';
+    return;
+  }
+  pathResult.value = r;
+  pathNote.value = '';
+  selectedId.value = toId;
+}
+
+const pathText = computed(() =>
+  pathResult.value ? describePath(pathResult.value, nodeName, RELATION_NAME) : '',
+);
+
+/**
+ * 当前「在焦点里」的节点集合。null = 不做任何变暗。
+ *
+ * 四种变暗来源可能同时存在，这里定优先级（从强到弱）：
+ *   寻路 > 搜索 > 筛选 > 悬停
+ *
+ * 为什么是这个顺序：
+ * - 寻路是用户明确发起的一次性动作，画面上只该有那条路径；
+ * - 搜索次之，用户正在找东西，结果之外都该退后；
+ * - 筛选是常态化的范围限定；
+ * - 悬停最弱，鼠标移开就没了。
+ *
+ * 合成一个集合而不是叠加多个 class：多个变暗规则同时生效时，
+ * 会出现「明明在搜索结果里却因为没悬停而变暗」这种自相矛盾的画面。
+ */
+const focusSet = computed<ReadonlySet<string> | null>(() => {
+  if (pathResult.value) return pathNodeSet.value;
+  if (hitSet.value) return hitSet.value;
+  if (filterActive.value) return new Set(visibleNodes.value.map((n) => n.id));
+  return hoverSet.value;
+});
+
+/** 某条边现在该不该亮着 */
+function edgeDimmed(i: number): boolean {
+  const e = allEdges.value[i];
+  if (!e) return true;
+  // 寻路中：只有路径上的边亮
+  if (pathResult.value) {
+    const key = e[0] < e[1] ? `${e[0]}|${e[1]}` : `${e[1]}|${e[0]}`;
+    return !pathEdgeKeys.value.has(key);
+  }
+  const f = focusSet.value;
+  if (!f) return false;
+  return !f.has(e[0]) || !f.has(e[1]);
+}
+
+/* ---------------- 节点到其他模块的入口（3.10.0） ---------------- */
+
+/**
+ * 星图是枢纽，但以前是个「死胡同」——点开一个节点，看完释义就只能关掉。
+ * 节点数据里其实早就带着 doc（原文段落）和 entries（方法论条目），
+ * 设计文档里写的「节点三入口」一直没实现。
+ *
+ * 这里按数据能力给出入口，没有数据的就不显示（而不是显示一个点了没反应的按钮）。
+ */
+const selectedDoc = computed(() => selected.value?.doc ?? null);
+const selectedEntries = computed(() => selected.value?.entries ?? []);
+
+/** 这个人物在「论道」里有没有对应人格 */
+const selectedPhilosopher = computed(() => {
+  const id = selected.value?.id;
+  if (!id) return null;
+  return PHILOSOPHERS.find((p) => p.id === id) ?? null;
+});
+
+function gotoSrc(): void {
+  const d = selectedDoc.value;
+  if (!d) return;
+  nav.openDoc(d.d, d.p);
+}
+
+function gotoMethod(entry: string): void {
+  nav.startGewu(entry);
+}
+
+function gotoDebate(): void {
+  const p = selectedPhilosopher.value;
+  if (!p) return;
+  core.debate.open(p.id);
+  nav.go('debate');
+}
+
+
 /* ---------------- 帧循环 ---------------- */
 
 function loop(): void {
@@ -260,6 +517,11 @@ function onNodeUp(id: string): void {
 
 function onNodeClick(id: string): void {
   if (dragMoved) return;
+  // 寻路进行中：这一下是「终点」，不是「选中」
+  if (pathFrom.value) {
+    completePath(id);
+    return;
+  }
   selectedId.value = id;
   panelOpen.value = true;
 }
@@ -772,10 +1034,36 @@ const offLit = core.progress.subscribe((lit) => {
   litIds.value = [...lit];
 });
 
+/**
+ * 键盘快捷键。
+ *
+ * `/` 聚焦搜索 —— 这是搜索框最通用的约定（GitHub / Notion / Linear 都这么做），
+ * 用户不用摸鼠标就能开始找东西。
+ *
+ * 但只在「焦点不在输入框里」时才抢键，否则在搜索框里打斜杠会被吞掉。
+ */
+function onKeydown(e: KeyboardEvent): void {
+  const tag = (e.target as HTMLElement | null)?.tagName;
+  const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  if (e.key === '/' && !inField) {
+    e.preventDefault();
+    searchInput.value?.focus();
+    searchOpen.value = true;
+    return;
+  }
+  if (e.key === 'Escape') {
+    if (searchOpen.value || searchText.value) clearSearch();
+    else if (pathFrom.value || pathResult.value) cancelPath();
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown));
+
 onBeforeUnmount(() => {
   offLit();
   cancelAnimationFrame(raf);
   window.removeEventListener('resize', syncNarrow);
+  window.removeEventListener('keydown', onKeydown);
   nodeEls.clear();
   lineEls.clear();
 });
@@ -812,7 +1100,7 @@ onBeforeUnmount(() => {
           v-for="(e, i) in allEdges"
           :key="`e${i}`"
           class="edge"
-          :class="e[2]"
+          :class="[e[2], { dim: edgeDimmed(i), path: pathResult && !edgeDimmed(i) }]"
           :data-idx="i"
           marker-end="url(#ah)"
         />
@@ -821,7 +1109,15 @@ onBeforeUnmount(() => {
           v-for="n in allNodes"
           :key="n.id"
           class="node"
-          :class="[{ dim: hoverSet && !hoverSet.has(n.id), mine: customIds.has(n.id) }, 'k-' + n.kind]"
+          :class="[
+            {
+              dim: focusSet && !focusSet.has(n.id),
+              mine: customIds.has(n.id),
+              onpath: pathNodeSet.has(n.id),
+              target: pathFrom === n.id,
+            },
+            'k-' + n.kind,
+          ]"
           :data-node="n.id"
           @pointerdown="onNodeDown($event, n.id)"
           @pointermove="onNodeMove($event, n.id)"
@@ -849,6 +1145,140 @@ onBeforeUnmount(() => {
           </text>
         </g>
       </svg>
+
+      <!-- 搜索与筛选：52 个节点靠眼睛扫是找不到的 -->
+      <div class="finder" :class="{ narrow }">
+        <div class="find-row">
+          <span class="ic"><Icon name="i-compass" :size="14" /></span>
+          <input
+            ref="searchInput"
+            v-model="searchText"
+            type="text"
+            class="find-input"
+            placeholder="搜概念 / 人物 / 释义 / 出处"
+            spellcheck="false"
+            @focus="searchOpen = true"
+            @keydown.esc.prevent="clearSearch()"
+            @keydown.enter.prevent="hits.length && pickHit(hits[0]!.node.id)"
+          />
+          <button
+            v-if="searchText"
+            type="button"
+            class="find-x"
+            title="清空"
+            @click="clearSearch()"
+          >
+            ×
+          </button>
+          <button
+            type="button"
+            class="find-filter"
+            :class="{ on: filterOpen || filterActive }"
+            :title="filterActive ? '已启用筛选' : '筛选'"
+            @click="filterOpen = !filterOpen"
+          >
+            <Icon name="i-list" :size="14" />
+            筛选
+            <b v-if="filterActive" class="dot-on" />
+          </button>
+        </div>
+
+        <!-- 搜索结果：浮在图上，不挤压布局 -->
+        <div v-if="searchOpen && searchText.trim()" class="find-hits">
+          <p v-if="!hits.length" class="fh-none">没有匹配的节点</p>
+          <button
+            v-for="h in hits.slice(0, 12)"
+            :key="h.node.id"
+            type="button"
+            class="find-hit"
+            @click="pickHit(h.node.id)"
+          >
+            <b>{{ h.node.name }}</b>
+            <em>{{ KIND_LABEL[h.node.kind] }} · {{ h.node.school }}</em>
+            <span v-if="filterActive && !inFilterSet.has(h.node.id)" class="fh-why off">
+              不在筛选内
+            </span>
+            <span v-else-if="h.field !== 'name'" class="fh-why">
+              命中{{ h.field === 'brief' ? '释义' : h.field === 'src' ? '出处' : '脉络' }}
+            </span>
+          </button>
+        </div>
+
+        <!-- 筛选面板 -->
+        <div v-if="filterOpen" class="filter-panel">
+          <div class="fp-group">
+            <h5>脉络</h5>
+            <div class="fp-chips">
+              <button
+                v-for="s in schools"
+                :key="s.school"
+                type="button"
+                class="fp-chip"
+                :class="{ on: filter.schools.includes(s.school) }"
+                @click="toggleSchool(s.school)"
+              >
+                {{ s.school }}<i>{{ s.count }}</i>
+              </button>
+            </div>
+          </div>
+          <div class="fp-group">
+            <h5>类型</h5>
+            <div class="fp-chips">
+              <button
+                v-for="k in (['figure', 'school', 'method', 'concept'] as NodeKind[])"
+                :key="k"
+                type="button"
+                class="fp-chip"
+                :class="{ on: filter.kinds.includes(k) }"
+                @click="toggleKind(k)"
+              >
+                {{ KIND_LABEL[k] }}
+              </button>
+            </div>
+          </div>
+          <div class="fp-group">
+            <h5>状态</h5>
+            <div class="fp-chips">
+              <button
+                v-for="s in ([
+                  { key: 'all', label: '全部' },
+                  { key: 'lit', label: '已点亮' },
+                  { key: 'unlit', label: '盲区' },
+                  { key: 'mine', label: '我加的' },
+                ] as const)"
+                :key="s.key"
+                type="button"
+                class="fp-chip"
+                :class="{ on: filter.status === s.key }"
+                @click="setStatus(s.key)"
+              >
+                {{ s.label }}
+              </button>
+            </div>
+          </div>
+          <div class="fp-foot">
+            <span v-if="filterActive" class="fp-count">
+              显示 {{ visibleNodes.length }} / {{ allNodes.length }} 节点 · {{ visibleEdgeCount }} 条关系
+            </span>
+            <button v-if="filterActive" type="button" class="link" @click="resetFilter()">
+              重置
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 寻路提示条：进行中/结果都在这一条上 -->
+      <div v-if="pathNote || pathResult" class="path-bar">
+        <template v-if="pathResult">
+          <span class="pb-label">关系路径 · {{ pathResult.hops.length }} 跳</span>
+          <span class="pb-text serif">{{ pathText }}</span>
+          <button type="button" class="pb-x" @click="cancelPath()">×</button>
+        </template>
+        <template v-else>
+          <span class="pb-text">{{ pathNote }}</span>
+          <button type="button" class="pb-x" @click="cancelPath()">×</button>
+        </template>
+      </div>
 
       <div class="hud">
         <span>已点亮 {{ litCount }} / {{ allNodes.length }} · {{ litPct }}%</span>
@@ -892,6 +1322,14 @@ onBeforeUnmount(() => {
             {{ litIds.includes(selected.id) ? '取消点亮' : '点亮此节点' }}
           </button>
           <button
+            type="button"
+            class="btn ghost"
+            :title="'看看它和另一个概念怎么连起来'"
+            @click="startPath()"
+          >
+            找关系
+          </button>
+          <button
             v-if="customIds.has(selected.id)"
             type="button"
             class="btn danger"
@@ -899,6 +1337,56 @@ onBeforeUnmount(() => {
           >
             移除此节点
           </button>
+        </div>
+
+        <!--
+          节点到其他模块的入口。
+          这是设计文档里承诺了很久、但一直没实现的「节点三入口」——
+          星图是枢纽，点开一个概念却只能读释义然后关掉，等于死胡同。
+          按数据能力显示：没有原文链接就不显示「读原文」，
+          没有方法论条目就不显示「格物」，避免点了没反应的死按钮。
+        -->
+        <div
+          v-if="selectedDoc || selectedEntries.length || selectedPhilosopher"
+          class="jumps"
+        >
+          <h4>从这里走下去</h4>
+
+          <button v-if="selectedDoc" type="button" class="jump" @click="gotoSrc()">
+            <span class="ji"><Icon name="i-book" :size="14" /></span>
+            <span class="jt">
+              <b>读原文这一段</b>
+              <small>跳到精读伴读，定位到这段话所在的位置</small>
+            </span>
+          </button>
+
+          <button
+            v-for="e in selectedEntries"
+            :key="e"
+            type="button"
+            class="jump"
+            @click="gotoMethod(e)"
+          >
+            <span class="ji"><Icon name="i-compass" :size="14" /></span>
+            <span class="jt">
+              <b>用方法论 {{ e }} 格物</b>
+              <small>拿它过一遍你手上正在烦的事</small>
+            </span>
+          </button>
+
+          <button v-if="selectedPhilosopher" type="button" class="jump" @click="gotoDebate()">
+            <span class="ji"><Icon name="i-scale" :size="14" /></span>
+            <span class="jt">
+              <b>找{{ selectedPhilosopher.name }}论一轮</b>
+              <small>{{ selectedPhilosopher.style }}</small>
+            </span>
+          </button>
+        </div>
+
+        <div v-if="pathResult" class="path-card">
+          <h4>关系路径 · {{ pathResult.hops.length }} 跳</h4>
+          <p class="serif">{{ pathText }}</p>
+          <button type="button" class="link" @click="cancelPath()">收起</button>
         </div>
 
         <div v-if="selectedRels.length" class="rels">
@@ -1127,6 +1615,19 @@ onBeforeUnmount(() => {
   stroke-dasharray: 5 4;
 }
 
+/* 被搜索/筛选/悬停挤到背景里的边 */
+.edge.dim {
+  opacity: 0.12;
+}
+
+/* 寻路上的那一串边：加粗、实线、提亮 */
+.edge.path {
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-dasharray: none;
+  opacity: 1;
+}
+
 /* 节点 */
 .node {
   cursor: pointer;
@@ -1135,6 +1636,34 @@ onBeforeUnmount(() => {
 
 .node.dim {
   opacity: 0.18;
+}
+
+/* 寻路上的节点：加一圈光晕，一眼看出这条链经过谁 */
+.node.onpath .dot {
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+.node.onpath .lbl {
+  fill: var(--ink);
+  font-weight: 500;
+}
+
+/* 寻路起点：脉冲圈，提示「再点一个」 */
+.node.target .ring {
+  opacity: 0.9;
+  stroke: var(--accent);
+  stroke-dasharray: 3 3;
+  animation: pathPulse 1.4s var(--ease) infinite;
+}
+
+@keyframes pathPulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .dot {
@@ -1237,6 +1766,318 @@ onBeforeUnmount(() => {
 
 .hud button:hover {
   color: var(--accent);
+}
+
+/* ---------- 搜索与筛选 ---------- */
+
+/*
+ * 定位在左上角、绝对定位浮在图上。
+ *
+ * 为什么不做成占位的工具栏：星图的价值在于「看得见整张网」，
+ * 顶部再压一条 60px 的横条，52 个节点能用的高度就少了一截。
+ * 浮层只在实际交互时才展开。
+ */
+.finder {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  width: 340px;
+  max-width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 3;
+}
+
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--star-legend-bg);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+}
+
+.finder .ic {
+  display: grid;
+  place-items: center;
+  color: var(--ink3);
+  flex: none;
+}
+
+.finder .ic svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.find-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: var(--ink);
+  padding: 4px 0;
+}
+
+.find-input::placeholder {
+  color: var(--ink3);
+}
+
+.find-x {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink3);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.find-x:hover {
+  background: var(--field);
+  color: var(--ink);
+}
+
+.find-filter {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  color: var(--ink2);
+  position: relative;
+}
+
+.find-filter svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.find-filter:hover,
+.find-filter.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* 筛选生效时的红点，避免用户忘了自己开着筛选 */
+.find-filter .dot-on {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* 搜索结果浮层
+ *
+ * 类名刻意用 find-hits 而不是 hits —— 星图节点的透明命中圈已经占了 .hit，
+ * 一开始两个撞名，搜索结果和 52 个隐形圆圈混在一起，
+ * 自动化测试点到了圆圈上（「element is not stable」）。
+ */
+.find-hits {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--glass-bg, var(--card));
+  border: 1px solid var(--line);
+  backdrop-filter: blur(var(--glass-blur, 12px));
+  box-shadow: var(--sh-float, 0 12px 30px -18px rgba(0, 0, 0, 0.6));
+}
+
+.find-hit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.find-hit:hover {
+  background: var(--field);
+}
+
+.find-hit b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.find-hit em {
+  font-size: 11px;
+  font-style: normal;
+  color: var(--ink3);
+}
+
+.fh-why {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--ink3);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--field);
+}
+
+/* 被筛选挡住的那一条：用警示色标出来，别让用户以为是坏了 */
+.fh-why.off {
+  color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+}
+
+.fh-none {
+  margin: 0;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--ink3);
+  text-align: center;
+}
+
+/* 筛选面板 */
+.filter-panel {
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--glass-bg, var(--card));
+  border: 1px solid var(--line);
+  backdrop-filter: blur(var(--glass-blur, 12px));
+  box-shadow: var(--sh-float, 0 12px 30px -18px rgba(0, 0, 0, 0.6));
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.fp-group h5 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink3);
+  letter-spacing: 0.04em;
+}
+
+.fp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.fp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--field);
+  font-size: 11.5px;
+  color: var(--ink2);
+  transition: border-color 0.16s, color 0.16s, background 0.16s;
+}
+
+.fp-chip i {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--ink3);
+  font-variant-numeric: tabular-nums;
+}
+
+.fp-chip:hover {
+  border-color: var(--line-hi);
+  color: var(--ink);
+}
+
+.fp-chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.fp-chip.on i {
+  color: var(--accent);
+}
+
+.fp-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.fp-count {
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+/* ---------- 寻路提示条 ---------- */
+
+.path-bar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 58px;
+  max-width: min(680px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg, var(--card));
+  border: 1px solid var(--accent);
+  backdrop-filter: blur(var(--glass-blur, 12px));
+  box-shadow: var(--sh-float, 0 12px 30px -18px rgba(0, 0, 0, 0.6));
+  font-size: 12px;
+  color: var(--ink2);
+  z-index: 3;
+}
+
+.pb-label {
+  flex: none;
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+}
+
+.pb-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.pb-x {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink3);
+  font-size: 15px;
+}
+
+.pb-x:hover {
+  background: var(--field);
+  color: var(--ink);
 }
 
 /* ---------- 右侧面板 ---------- */
@@ -1456,6 +2297,58 @@ onBeforeUnmount(() => {
     gap: 4px;
     font-size: 11px;
   }
+
+  /* 手机上搜索框顶满宽度：390px 屏留 340px 的框只剩 25px 边距，看着别扭 */
+  .finder {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: none;
+    gap: 6px;
+  }
+
+  .find-row {
+    padding: 4px 6px 4px 10px;
+  }
+
+  /* 手机键盘弹起时，搜索框离屏幕顶部太近会被状态栏压住，这里给足触控高度 */
+  .find-input {
+    font-size: 14px; /* < 16px 会在 iOS 上触发自动放大 */
+    padding: 6px 0;
+  }
+
+  .find-x,
+  .find-filter {
+    min-height: 36px;
+  }
+
+  .find-hits {
+    max-height: 44vh;
+  }
+
+  .filter-panel {
+    max-height: 48vh;
+  }
+
+  /* 寻路提示条在手机上要抬到 HUD 上方，否则两坨挤在一起 */
+  .path-bar {
+    left: 10px;
+    right: 10px;
+    transform: none;
+    max-width: none;
+    bottom: 52px;
+    padding: 8px 8px 8px 12px;
+    font-size: 11.5px;
+  }
+
+  /* 手机上路径文本可能很长，允许换行但不撑破屏幕 */
+  .pb-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }
 
 /* ============================================================
@@ -1487,6 +2380,121 @@ onBeforeUnmount(() => {
   background: transparent;
   border: 1px solid var(--rose, #b0483f);
   color: var(--rose, #b0483f);
+}
+
+/* 次要按钮：跟主按钮并排时不能抢主按钮的视觉重量 */
+.btn.ghost {
+  background: var(--field);
+  border: 1px solid var(--line);
+  color: var(--ink2);
+}
+
+.btn.ghost:hover {
+  border-color: var(--line-hi);
+  color: var(--ink);
+  background: var(--field);
+}
+
+/* ---------- 节点跳转入口（三入口） ---------- */
+
+.jumps {
+  margin-bottom: 16px;
+}
+
+.jumps h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink3);
+  letter-spacing: 0.03em;
+}
+
+.jump {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--card);
+  text-align: left;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.jump:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ji {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ji svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.jt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jt b {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.jt small {
+  font-size: 11px;
+  color: var(--ink3);
+  line-height: 1.5;
+}
+
+/* 面板里的关系路径卡 */
+.path-card {
+  margin-bottom: 16px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.path-card h4 {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.path-card p {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--ink);
+}
+
+.path-card .link {
+  font-size: 11.5px;
+  color: var(--ink2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ---------- 共建弹窗 ---------- */

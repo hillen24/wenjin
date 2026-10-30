@@ -56,6 +56,12 @@
 
 ## 踩坑备忘
 
+- **★ 自动化测试的便捷 API 会掩盖真实 bug**：Playwright 的 `fill()` 会额外派发 `change`，
+  于是 `@change`（失焦才存）的丢值 bug 藏了很久。**凡是测「用户输入」都要用 `type()`（逐字）
+  而不是 `fill()`（批量）**。这个坑造成了「设置填了保存不住」。
+- **设置页文本框一律 `@input`（实时保存）**，select/checkbox 用 `@change`。
+  `SettingsStore.persistError` 一定要在 UI 里读出来 —— 写盘失败静默 = 用户反复重填。
+
 - **grid 子项的自动最小尺寸 = 内容高度** → 内层 `overflow:auto` 永远不触发，
   必须 `.wrap > * { min-height: 0 }`。这个坑在 3.9.1 精读伴读上犯过一次。
 - electron-builder 每次版本变更后**第一次 dist 必失败**（safe-delete 拦 dist-app 清理）→ 重跑即过。

@@ -46,6 +46,7 @@ export * from './prompts';
 
 /* --- 星图引擎（纯函数，可单测） --- */
 export * from './star/engine';
+export * from './star/query';
 export {
   StarGraphStore,
   buildAiPrompt,
