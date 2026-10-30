@@ -239,3 +239,116 @@ describe('Edge TTS 引擎', () => {
     expect(created).toHaveLength(0); // 没有为已作废的请求创建音频
   });
 });
+
+describe('自定义 TTS 引擎', () => {
+  it('发的是云端地址，body 带模型和音色', async () => {
+    const { createAudio } = makeAudio('end');
+    const fetchImpl = vi.fn(async () => new Response(new Blob(['mp3']), { status: 200 }));
+    const tts = new TtsController({
+      getSettings: settings({
+        ttsEngine: 'custom',
+        ttsProvider: 'siliconflow',
+        ttsApiKey: 'sk-abc',
+        ttsContinuous: false,
+      }),
+      fetchImpl: fetchImpl as unknown as FetchLike,
+      createAudio,
+      revokeUrl: vi.fn(),
+    });
+
+    let finished = 0;
+    tts.start(['念这一段'], 0, { onFinish: () => (finished += 1) });
+    await vi.waitFor(() => expect(finished).toBe(1));
+
+    const call = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]!;
+    expect(String(call[0])).toBe('https://api.siliconflow.cn/v1/audio/speech');
+    const init = call[1] as { headers: Record<string, string>; body: string };
+    expect(init.headers.Authorization).toBe('Bearer sk-abc');
+    const body = JSON.parse(init.body);
+    expect(body.model).toBe('FunAudioLLM/CosyVoice2-0.5B');
+    expect(body.voice).toBe('FunAudioLLM/CosyVoice2-0.5B:anna');
+    expect(body.input).toBe('念这一段');
+  });
+
+  it('自定义引擎失败时也退回系统语音', async () => {
+    const { synth, spoken } = fakeSynth();
+    const fetchImpl = vi.fn(async () => new Response('nope', { status: 401 }));
+    const tts = new TtsController({
+      getSettings: settings({ ttsEngine: 'custom', ttsContinuous: false }),
+      synth,
+      createUtterance: makeUtterance,
+      fetchImpl: fetchImpl as unknown as FetchLike,
+      revokeUrl: vi.fn(),
+    });
+
+    const notes: string[] = [];
+    tts.start(['要念的话'], 0, { onNotice: (m) => notes.push(m) });
+    await vi.waitFor(() => expect(spoken).toHaveLength(1));
+    expect(notes[0]).toContain('自定义 TTS');
+    expect(notes[0]).toContain('HTTP 401');
+  });
+
+  it('probe 成功时给出体积和耗时', async () => {
+    const fetchImpl = vi.fn(async () => new Response(new Blob(['x'.repeat(2048)]), { status: 200 }));
+    const tts = new TtsController({
+      getSettings: settings({ ttsEngine: 'custom' }),
+      fetchImpl: fetchImpl as unknown as FetchLike,
+    });
+
+    const r = await tts.probe();
+    expect(r.ok).toBe(true);
+    expect(r.detail).toContain('KB');
+  });
+
+  it('probe 失败时把服务端说的原因带出来', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: { message: 'model not found' } }), { status: 404 }),
+    );
+    const tts = new TtsController({
+      getSettings: settings({ ttsEngine: 'custom' }),
+      fetchImpl: fetchImpl as unknown as FetchLike,
+    });
+
+    const r = await tts.probe();
+    expect(r.ok).toBe(false);
+    expect(r.detail).toContain('model not found');
+  });
+
+  it('probe 在地址没配时直接报人话', async () => {
+    const tts = new TtsController({
+      getSettings: settings({ ttsEngine: 'custom', ttsProvider: 'custom', ttsApiBase: '' }),
+    });
+    const r = await tts.probe();
+    expect(r.ok).toBe(false);
+    expect(r.detail).toContain('未配置');
+  });
+
+  it('能拉到服务端音色列表', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ voices: [{ id: 'v1', name: 'Anna' }, { id: 'v2', name: 'Alex' }] }), {
+        status: 200,
+      }),
+    );
+    const tts = new TtsController({
+      getSettings: settings({ ttsEngine: 'custom' }),
+      fetchImpl: fetchImpl as unknown as FetchLike,
+    });
+
+    const r = await tts.listRemoteVoices();
+    expect(r.ok).toBe(true);
+    expect(r.voices.map((v) => v.id)).toEqual(['v1', 'v2']);
+  });
+
+  it('服务端没有音色接口时给出可操作的说明', async () => {
+    const fetchImpl = vi.fn(async () => new Response('not found', { status: 404 }));
+    const tts = new TtsController({
+      getSettings: settings({ ttsEngine: 'custom' }),
+      fetchImpl: fetchImpl as unknown as FetchLike,
+    });
+
+    const r = await tts.listRemoteVoices();
+    expect(r.ok).toBe(false);
+    expect(r.detail).toContain('手动填写');
+  });
+});

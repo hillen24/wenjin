@@ -24,6 +24,24 @@ export function isNativeHttp(): boolean {
   return typeof window !== 'undefined' && !!(window as { Capacitor?: unknown }).Capacitor;
 }
 
+/**
+ * base64 → Blob
+ *
+ * Android 原生层拿到二进制（mp3/wav）时没法直接跨桥传字节，
+ * 它的做法是 base64 编码成字符串再送回 JS。所以这里要解回来。
+ *
+ * 坑：atob 解出来的是「每个字符一个字节」的 binary string，
+ * 直接 new Blob([binaryString]) 会按 UTF-8 再编码一次 → 高位字节全乱，音频变噪音。
+ * 必须先转成 Uint8Array。
+ */
+function base64ToBlob(b64: string, mime: string): Blob {
+  const clean = b64.replace(/\s+/g, '');
+  const binary = atob(clean);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 export const capFetch: typeof fetch = async (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
   const method = (init?.method ?? 'GET').toUpperCase();
@@ -57,6 +75,9 @@ export const capFetch: typeof fetch = async (input, init) => {
     }
   }
 
+  // 要二进制响应（TTS 音频）。原生层见到 arraybuffer 会把 body base64 送回来。
+  const wantsBinary = (init as { wjBinary?: boolean } | undefined)?.wjBinary === true;
+
   const signal = init?.signal;
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -67,6 +88,7 @@ export const capFetch: typeof fetch = async (input, init) => {
     data,
     connectTimeout: 10_000,
     readTimeout: 60_000,
+    ...(wantsBinary ? { responseType: 'arraybuffer' as const } : {}),
   });
 
   // 原生请求没法中途取消，但超时 / 用户取消时要让调用方立刻返回
@@ -88,12 +110,22 @@ export const capFetch: typeof fetch = async (input, init) => {
     throw new TypeError(`Failed to fetch: ${(e as Error)?.message ?? e}`);
   }
 
+  const resHeaders = (native.headers ?? {}) as Record<string, string>;
+  const contentType =
+    resHeaders['content-type'] ?? resHeaders['Content-Type'] ?? 'application/octet-stream';
+
+  // 二进制分支：原生层给的是 base64 字符串，解回 Blob
+  if (wantsBinary && typeof native.data === 'string') {
+    const blob = base64ToBlob(native.data, contentType);
+    return new Response(blob, { status: native.status, headers: resHeaders });
+  }
+
   // 原生层对 JSON 响应会直接给对象；拼回字符串交给 Response 统一解析
   const payload =
     typeof native.data === 'string' ? native.data : JSON.stringify(native.data ?? '');
 
   return new Response(payload, {
     status: native.status,
-    headers: native.headers as Record<string, string>,
+    headers: resHeaders,
   });
 };

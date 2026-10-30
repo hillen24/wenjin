@@ -86,6 +86,8 @@ export * from './reader';
 
 /* --- 朗读 --- */
 export * from './tts';
+export * from './tts/providers';
+export * from './tts/synth';
 
 /* --- 格物与论道（会话对象） --- */
 export * from './gewu';

@@ -12,6 +12,8 @@ import { Icon } from '@wenjin/ui';
 import {
   EDGE_VOICES,
   PROVIDERS,
+  TTS_FORMATS,
+  TTS_PROVIDERS,
   describeSnapshot,
   parseBackupFile,
   type AiStatus,
@@ -19,6 +21,7 @@ import {
   type SettingsPatch,
   type ThemeMode,
   type TtsEngine,
+  type VoiceOption,
 } from '@wenjin/core';
 import { useCore } from '../providers';
 import LanSync from '../sync/LanSync.vue';
@@ -101,7 +104,7 @@ function update<K extends keyof Settings>(key: K, value: Settings[K]): void {
   core.settings.patch(patch);
 }
 
-function onText(key: 'baseURL' | 'apiKey' | 'model', e: Event): void {
+function onText(key: 'baseURL' | 'apiKey' | 'model' | 'ttsBaseURL', e: Event): void {
   const v = (e.target as HTMLInputElement).value;
   update(key, v);
 }
@@ -141,11 +144,87 @@ const THEMES: { key: ThemeMode; label: string }[] = [
   { key: 'light', label: '白天' },
 ];
 
-const ENGINES: { key: TtsEngine; label: string }[] = [
-  { key: 'browser', label: '系统内置' },
-  { key: 'edge', label: 'Edge 音色' },
-  { key: 'custom', label: '自建服务' },
+const ENGINES: { key: TtsEngine; label: string; desc: string }[] = [
+  { key: 'browser', label: '系统内置', desc: '用手机/电脑自带的语音。零配置，但音色质量看系统。' },
+  { key: 'edge', label: 'Edge 音色', desc: '走 edge-tts 桥接服务。音质最好，需要电脑上有桥。' },
+  { key: 'custom', label: '云端 API', desc: '接你自己的 TTS 服务（OpenAI 兼容）。手机上唯一能出声的办法。' },
 ];
+
+/* ---------------- 自定义 TTS ---------------- */
+
+const ttsProviders = Object.entries(TTS_PROVIDERS).map(([id, p]) => ({ id, ...p }));
+
+const ttsProviderDef = computed(() => TTS_PROVIDERS[s.value.ttsProvider] ?? TTS_PROVIDERS.custom!);
+
+/**
+ * 切换服务商时，把该服务商的默认值填进去。
+ *
+ * 但只填「还等于上一个默认值的字段」—— 用户手改过的地址/Key 不能被冲掉。
+ * 这是设置页最容易招骂的地方：点一下别的服务商，刚填的 Key 没了。
+ */
+function setTtsProvider(id: string): void {
+  const prev = TTS_PROVIDERS[s.value.ttsProvider];
+  const next = TTS_PROVIDERS[id];
+  if (!next) return;
+
+  const patch: SettingsPatch = { ttsProvider: id };
+
+  // 地址：手改过就保留
+  if (prev && s.value.ttsApiBase === prev.base) patch.ttsApiBase = next.base;
+  else if (!s.value.ttsApiBase) patch.ttsApiBase = next.base;
+
+  // 模型 / 音色同理
+  if (prev && s.value.ttsApiModel === prev.model) patch.ttsApiModel = next.model;
+  else if (!s.value.ttsApiModel) patch.ttsApiModel = next.model;
+
+  if (prev && s.value.ttsApiVoice === prev.voice) patch.ttsApiVoice = next.voice;
+  else if (!s.value.ttsApiVoice) patch.ttsApiVoice = next.voice;
+
+  patch.ttsApiFormat = next.format;
+
+  core.settings.patch(patch);
+  ttsHint.value = '';
+}
+
+const ttsTesting = ref(false);
+const ttsHint = ref('');
+const ttsVoiceOptions = ref<VoiceOption[]>([]);
+const ttsLoadingVoices = ref(false);
+const ttsAdvanced = ref(false);
+
+/** 语音引擎当前是否可用（有可用的合成通道）。手机端没有系统语音，要提示。 */
+const engineNote = computed(() => ENGINES.find((e) => e.key === s.value.ttsEngine)?.desc ?? '');
+
+/** 当前服务商推荐的音色（供下拉选择）。自定义服务商没有预设。 */
+const presetVoices = computed(() => ttsProviderDef.value.voices ?? []);
+
+function onTtsText(key: string, e: Event): void {
+  const v = (e.target as HTMLInputElement | HTMLTextAreaElement).value;
+  core.settings.patch({ [key]: v } as SettingsPatch);
+  ttsHint.value = '';
+}
+
+async function testTts(): Promise<void> {
+  ttsTesting.value = true;
+  ttsHint.value = '';
+  const r = await core.tts.probe();
+  ttsTesting.value = false;
+  ttsHint.value = r.ok ? `✓ ${r.detail}` : `✗ ${r.detail}`;
+}
+
+async function loadTtsVoices(): Promise<void> {
+  ttsLoadingVoices.value = true;
+  ttsHint.value = '';
+  const r = await core.tts.listRemoteVoices();
+  ttsLoadingVoices.value = false;
+  ttsVoiceOptions.value = r.voices;
+  ttsHint.value = r.ok ? `✓ ${r.detail}` : `✗ ${r.detail}`;
+}
+
+function pickTtsVoice(v: VoiceOption): void {
+  core.settings.patch({ ttsApiVoice: v.id });
+  ttsHint.value = `已选音色 ${v.name}`;
+}
 
 function pickTheme(t: ThemeMode): void {
   core.theme.apply(t);
@@ -484,6 +563,7 @@ onBeforeUnmount(() => {
       <section>
         <header>
           <h2>语音朗读</h2>
+          <p>{{ engineNote }}</p>
         </header>
 
         <div class="field">
@@ -513,6 +593,191 @@ onBeforeUnmount(() => {
           </select>
         </div>
 
+        <div v-if="s.ttsEngine === 'edge'" class="field">
+          <label for="edgeBase">桥接服务地址</label>
+          <input
+            id="edgeBase"
+            type="text"
+            :value="s.ttsBaseURL"
+            placeholder="http://127.0.0.1:8787/v1"
+            spellcheck="false"
+            @change="onText('ttsBaseURL', $event)"
+          />
+          <p class="note">
+            电脑本机用 <code>http://127.0.0.1:8787/v1</code>；
+            手机要填电脑的局域网 IP（如 <code>http://192.168.1.5:8787/v1</code>），
+            两台要在同一个 Wi-Fi 下。
+          </p>
+        </div>
+
+        <!-- ---------- 自定义 TTS ---------- -->
+        <template v-if="s.ttsEngine === 'custom'">
+          <div class="field">
+            <label>服务商</label>
+            <div class="chips">
+              <button
+                v-for="p in ttsProviders"
+                :key="p.id"
+                type="button"
+                class="chip"
+                :class="{ on: s.ttsProvider === p.id }"
+                @click="setTtsProvider(p.id)"
+              >
+                {{ p.name }}
+              </button>
+            </div>
+            <p class="note">{{ ttsProviderDef.note }}</p>
+          </div>
+
+          <div class="field">
+            <label for="ttsBase">接口地址</label>
+            <input
+              id="ttsBase"
+              type="text"
+              :value="s.ttsApiBase"
+              :placeholder="ttsProviderDef.base || 'https://…/v1'"
+              spellcheck="false"
+              @change="onTtsText('ttsApiBase', $event)"
+            />
+            <p class="note">要带 /v1 这类前缀。留空则用服务商的默认地址。</p>
+          </div>
+
+          <div class="field">
+            <label for="ttsKey">API Key</label>
+            <input
+              id="ttsKey"
+              type="password"
+              :value="s.ttsApiKey"
+              placeholder="sk-…"
+              spellcheck="false"
+              autocomplete="off"
+              @change="onTtsText('ttsApiKey', $event)"
+            />
+            <p class="note">只存在这台设备上，不会上传到别处。</p>
+          </div>
+
+          <div class="field">
+            <label for="ttsModel">模型</label>
+            <input
+              id="ttsModel"
+              type="text"
+              :value="s.ttsApiModel"
+              :placeholder="ttsProviderDef.model || '模型名'"
+              spellcheck="false"
+              @change="onTtsText('ttsApiModel', $event)"
+            />
+          </div>
+
+          <div class="field">
+            <label for="ttsVoice">音色</label>
+            <div class="row">
+              <input
+                id="ttsVoice"
+                type="text"
+                :value="s.ttsApiVoice"
+                :placeholder="ttsProviderDef.voice || '音色名'"
+                spellcheck="false"
+                @change="onTtsText('ttsApiVoice', $event)"
+              />
+              <button type="button" class="btn ghost" :disabled="ttsLoadingVoices" @click="loadTtsVoices">
+                <Icon name="i-refresh" :size="14" />
+                {{ ttsLoadingVoices ? '拉取中…' : '拉取' }}
+              </button>
+            </div>
+            <select
+              v-if="presetVoices.length"
+              class="model-select"
+              :value="s.ttsApiVoice"
+              @change="onTtsText('ttsApiVoice', $event)"
+            >
+              <option value="">— 选一个常用音色 —</option>
+              <option v-for="v in presetVoices" :key="v.id" :value="v.id">{{ v.name }}</option>
+            </select>
+            <select
+              v-if="ttsVoiceOptions.length"
+              class="model-select"
+              :value="s.ttsApiVoice"
+              @change="pickTtsVoice(ttsVoiceOptions.find((v) => v.id === ($event.target as HTMLSelectElement).value)!)"
+            >
+              <option value="">— 服务端返回的 {{ ttsVoiceOptions.length }} 个音色 —</option>
+              <option
+                v-for="v in ttsVoiceOptions"
+                :key="v.id"
+                :value="v.id"
+              >{{ v.name }}</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="ttsFormat">音频格式</label>
+            <select
+              id="ttsFormat"
+              :value="s.ttsApiFormat"
+              @change="onTtsText('ttsApiFormat', $event)"
+            >
+              <option v-for="f in TTS_FORMATS" :key="f" :value="f">{{ f }}</option>
+            </select>
+            <p class="note">mp3 最通用；wav 无损但体积大；opus 更省流量。</p>
+          </div>
+
+          <div class="field">
+            <label>高级</label>
+            <button type="button" class="btn ghost wide" @click="ttsAdvanced = !ttsAdvanced">
+              <Icon name="i-gear" :size="14" />
+              {{ ttsAdvanced ? '收起' : '端点 / 请求头 / 请求体' }}
+            </button>
+          </div>
+
+          <template v-if="ttsAdvanced">
+            <div class="field">
+              <label for="ttsPath">端点路径</label>
+              <input
+                id="ttsPath"
+                type="text"
+                :value="s.ttsApiPath"
+                placeholder="/audio/speech"
+                spellcheck="false"
+                @change="onTtsText('ttsApiPath', $event)"
+              />
+              <p class="note">也可直接填完整 URL。默认 /audio/speech（OpenAI 兼容）。</p>
+            </div>
+
+            <div class="field">
+              <label for="ttsHeaders">附加请求头</label>
+              <textarea
+                id="ttsHeaders"
+                rows="3"
+                :value="s.ttsApiHeaders"
+                placeholder='{"api-key": "xxx"}'
+                spellcheck="false"
+                @change="onTtsText('ttsApiHeaders', $event)"
+              />
+              <p class="note">JSON 对象。给 Azure 之类非 Bearer 认证用。</p>
+            </div>
+
+            <div class="field">
+              <label for="ttsBody">附加请求参数</label>
+              <textarea
+                id="ttsBody"
+                rows="3"
+                :value="s.ttsApiBody"
+                placeholder='{"gain": 0, "sample_rate": 32000}'
+                spellcheck="false"
+                @change="onTtsText('ttsApiBody', $event)"
+              />
+              <p class="note">JSON 对象，会并进请求体。siliconflow 的 gain / sample_rate 在这儿填。</p>
+            </div>
+          </template>
+
+          <div class="actions">
+            <button type="button" class="btn primary" :disabled="ttsTesting" @click="testTts">
+              <Icon name="i-check" :size="14" />
+              {{ ttsTesting ? '合成中…' : '测试朗读' }}
+            </button>
+            <span v-if="ttsHint" class="hint">{{ ttsHint }}</span>
+          </div>
+        </template>
+
         <div class="field">
           <label for="rate">语速 · {{ s.ttsRate.toFixed(2) }}×</label>
           <input
@@ -524,6 +789,17 @@ onBeforeUnmount(() => {
             :value="s.ttsRate"
             @input="update('ttsRate', Number(($event.target as HTMLInputElement).value))"
           />
+        </div>
+
+        <div class="field">
+          <label>
+            <input
+              type="checkbox"
+              :checked="s.ttsContinuous"
+              @change="update('ttsContinuous', ($event.target as HTMLInputElement).checked)"
+            />
+            连续朗读（一段读完自动接下一段）
+          </label>
         </div>
       </section>
     </div>
@@ -656,7 +932,8 @@ label .opt {
 
 input[type='text'],
 input[type='password'],
-select {
+select,
+textarea {
   width: 100%;
   padding: 9px 11px;
   border-radius: var(--radius-sm);
@@ -665,12 +942,23 @@ select {
   font-size: 13px;
   outline: none;
   transition: border-color 0.16s;
+  font-family: inherit;
 }
 
 input[type='text']:focus,
 input[type='password']:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--accent);
+}
+
+/* JSON 输入框：用等宽字体，缩进看得见 */
+textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 64px;
 }
 
 input:disabled {
@@ -782,10 +1070,43 @@ input[type='range'] {
   cursor: not-allowed;
 }
 
+/* 撑满一行的次要按钮（高级设置折叠用） */
+.btn.wide {
+  width: 100%;
+  justify-content: center;
+}
+
 .hint {
   font-size: 12px;
   color: var(--ink3);
   line-height: 1.5;
+}
+
+/* 设置页里的 code 值（地址、路径），别让它撑破行宽 */
+.note code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+/* 复选框行：勾选框在左，字在右，别让 label 的 display:block 把它们拆成两行 */
+label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+label input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  flex: none;
+  margin: 0;
 }
 
 /* ---------- 数据备份 ---------- */

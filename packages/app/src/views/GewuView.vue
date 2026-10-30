@@ -970,7 +970,9 @@ function again(): void {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 10px;
+    /* 原来 3px 上下 padding 只有 26px 高，手指头点不准 */
+    padding: 8px 12px;
+    min-height: 40px;
     border: 1px solid var(--line);
     border-radius: 999px;
     background: var(--field);

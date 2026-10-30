@@ -209,6 +209,26 @@ export interface Settings {
   ttsBaseURL: string;
   ttsKey: string;
   ttsEdgeVoice: string;
+
+  /* --- 自定义 TTS（云端，OpenAI 兼容） --- */
+  /** 选中的服务商 key，对应 TTS_PROVIDERS */
+  ttsProvider: string;
+  /** 接口地址。留空则用服务商预设的 */
+  ttsApiBase: string;
+  /** API Key */
+  ttsApiKey: string;
+  /** 模型名。留空则用服务商预设的 */
+  ttsApiModel: string;
+  /** 音色。留空则用服务商预设的 */
+  ttsApiVoice: string;
+  /** 音频格式：mp3 / wav / opus / pcm / aac */
+  ttsApiFormat: string;
+  /** 端点路径。默认 /audio/speech，可填完整 URL */
+  ttsApiPath: string;
+  /** 附加请求头（JSON 文本）。给 Azure 之类非 Bearer 认证用 */
+  ttsApiHeaders: string;
+  /** 附加请求体参数（JSON 文本）。gain / sample_rate / references 之类 */
+  ttsApiBody: string;
 }
 
 /** 设置里允许部分更新的形状 */

@@ -17,6 +17,7 @@ import {
   PROMPT_CONNECT,
   PROMPT_EXPLAIN,
   STAR_NODES,
+  TTS_PROVIDERS,
   today,
   type ShelfDoc,
 } from '@wenjin/core';
@@ -948,8 +949,13 @@ const readingIndex = ref(-1);
 const speaking = ref(false);
 
 const ttsEngineName = computed(() => {
-  const e = core.settings.read('ttsEngine');
-  return e === 'edge' ? 'Edge 音色' : e === 'custom' ? '自定义 TTS' : '系统语音';
+  const s = core.settings.get();
+  if (s.ttsEngine === 'edge') return 'Edge 音色';
+  if (s.ttsEngine === 'custom') {
+    const p = TTS_PROVIDERS[s.ttsProvider];
+    return p ? `${p.name} TTS` : '自定义 TTS';
+  }
+  return '系统语音';
 });
 
 function speak(from: number): void {
@@ -1814,6 +1820,11 @@ onBeforeUnmount(() => {
   /* 手机上没有悬停：原来 hover 才出现的朗读按钮改为常显，轻点即可朗读本段 */
   .para-tts {
     opacity: 1;
+    /* 24px 太小，手指头点不准 → 34px 的正方形可点区 */
+    width: 34px;
+    height: 34px;
+    right: -8px;
+    top: 0.2em;
   }
 
   .toolbar {

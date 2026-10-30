@@ -15,7 +15,19 @@ import type { AiReply, ChatMessage, Settings } from '../types';
 import { PROVIDERS } from '../data/providers';
 import { AiError, toAiError } from './errors';
 
-export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+/**
+ * 请求初始化。
+ *
+ * 多出来的 `wjBinary` 是给原生层用的：手机端走 CapacitorHttp，
+ * 那边的二进制响应会被 base64 化后再传回来（见 apps/mobile/src/capFetch.ts），
+ * 标准 fetch 则是原生 ArrayBuffer。core 里只有 TTS 合成用得上。
+ */
+export interface FetchInit extends RequestInit {
+  /** 期望二进制响应（TTS 音频）。标准 fetch 忽略这个字段。 */
+  wjBinary?: boolean;
+}
+
+export type FetchLike = (input: string, init?: FetchInit) => Promise<Response>;
 
 export interface AiClientOptions {
   /** 每次调用时读一次最新设置，避免持有陈旧副本 */

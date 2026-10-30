@@ -4,6 +4,7 @@
 
 import type { Settings, ThemeMode, TtsEngine } from '../types';
 import { PROVIDERS } from '../data/providers';
+import { TTS_FORMATS, TTS_PROVIDERS } from '../tts/providers';
 
 /** 首次启动用的服务商 */
 const BOOT_PROVIDER = 'ollama';
@@ -29,6 +30,16 @@ export const DEFAULT_SETTINGS: Settings = {
   ttsBaseURL: 'http://127.0.0.1:8787/v1',
   ttsKey: '',
   ttsEdgeVoice: 'zh-CN-XiaoxiaoNeural',
+
+  ttsProvider: 'siliconflow',
+  ttsApiBase: '',
+  ttsApiKey: '',
+  ttsApiModel: '',
+  ttsApiVoice: '',
+  ttsApiFormat: 'mp3',
+  ttsApiPath: '/audio/speech',
+  ttsApiHeaders: '',
+  ttsApiBody: '',
 };
 
 const THEMES: readonly ThemeMode[] = ['dark', 'light'];
@@ -86,5 +97,18 @@ export function normalizeSettings(raw: unknown): Settings {
     ttsBaseURL: str(src.ttsBaseURL, d.ttsBaseURL),
     ttsKey: str(src.ttsKey, d.ttsKey),
     ttsEdgeVoice: str(src.ttsEdgeVoice, d.ttsEdgeVoice),
+    ttsProvider: TTS_PROVIDERS[str(src.ttsProvider, d.ttsProvider)]
+      ? str(src.ttsProvider, d.ttsProvider)
+      : d.ttsProvider,
+    ttsApiBase: str(src.ttsApiBase, d.ttsApiBase),
+    ttsApiKey: str(src.ttsApiKey, d.ttsApiKey),
+    ttsApiModel: str(src.ttsApiModel, d.ttsApiModel),
+    ttsApiVoice: str(src.ttsApiVoice, d.ttsApiVoice),
+    ttsApiFormat: TTS_FORMATS.includes(String(src.ttsApiFormat))
+      ? String(src.ttsApiFormat)
+      : d.ttsApiFormat,
+    ttsApiPath: str(src.ttsApiPath, d.ttsApiPath),
+    ttsApiHeaders: str(src.ttsApiHeaders, d.ttsApiHeaders),
+    ttsApiBody: str(src.ttsApiBody, d.ttsApiBody),
   };
 }

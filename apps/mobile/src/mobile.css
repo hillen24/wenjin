@@ -65,3 +65,77 @@ body {
     overflow: hidden;
   }
 }
+
+/*
+ * 触摸目标尺寸
+ *
+ * 手机上手指头比鼠标粗得多，Material 的建议是 48dp、iOS 是 44pt。
+ * 之前实拍发现一堆按钮只有 20~31px 高（顶栏的 AI 状态点、面板关闭、
+ * 段落末尾的朗读喇叭、历史切换…），点不准是必然的。
+ *
+ * 这里用 min-height 兜底，但**不覆盖**已经够大的按钮，也不改宽高比例型控件
+ * （滑块、开关、进度条），那些给 min-height 只会变形。
+ *
+ * 断点用宽度而不是 hover/pointer 特性：
+ * 真实安卓机两者都满足，但模拟器、某些定制 WebView、以及
+ * 「外接鼠标的平板」这些情况会漏判 —— 用宽度兜底更稳。
+ */
+@media (max-width: 760px) {
+  button,
+  [role='button'],
+  select,
+  label:has(input[type='checkbox']),
+  label:has(input[type='radio']) {
+    min-height: 40px;
+  }
+
+  /* 但这几类天生就该是小控件，别撑开 */
+  input[type='range'],
+  input[type='checkbox'],
+  input[type='radio'],
+  .m-tab {
+    min-height: 0;
+  }
+
+  /* 段落末尾的朗读喇叭：给它一个正方形的可点区 */
+  .para-tts {
+    min-width: 34px;
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 顶栏的三个圆形按钮补回 40px */
+  .ai-dot,
+  .theme,
+  .back {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+}
+
+/*
+ * 软键盘适配
+ *
+ * Android WebView 默认键盘弹出时**不缩**页面，输入框会被盖在键盘下面 ——
+ * 用户点了输入框，什么都看不见，只觉得「卡了」。
+ *
+ * interactive-widget=resizes-content 让浏览器在键盘弹出时把 viewport 缩小，
+ * 配合 body 的 100dvh，输入框就自然被顶到键盘上方了。
+ * （Chrome 108+ 支持；老版本退化成原来的行为，不至于更糟。）
+ */
+@supports (height: 100dvh) {
+  html {
+    /* 键盘弹出时由浏览器接管高度 */
+    height: 100%;
+  }
+}
+
+/* 键盘弹出时，正在聚焦的输入框滚进可视区 */
+.m-stage input:focus,
+.m-stage textarea:focus {
+  scroll-margin-bottom: 120px;
+}
+

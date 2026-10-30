@@ -1,6 +1,6 @@
 {
   "name": "@wenjin/desktop",
-  "version": "3.9.1",
+  "version": "3.9.2",
   "private": true,
   "description": "致知 · 电脑端",
   "author": "wenjin",
@@ -39,7 +39,7 @@
     "win": {
       "target": "portable",
       "executableName": "zhizhi",
-      "artifactName": "致知-电脑版-3.9.1.exe"
+      "artifactName": "致知-电脑版-3.9.2.exe"
     },
     "icon": "../../assets/icon.png"
   }

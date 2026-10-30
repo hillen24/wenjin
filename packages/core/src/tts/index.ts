@@ -16,6 +16,8 @@
 
 import type { Settings } from '../types';
 import type { FetchLike } from '../ai/client';
+import { buildSynthRequest, currentProvider } from './synth';
+import type { VoiceOption } from '../types';
 
 /* ---------- 最小接口，便于注入假实现 ---------- */
 
@@ -64,6 +66,80 @@ export interface TtsHooks {
   onNotice?(message: string): void;
   /** 引擎失败并已自动降级，视图可据此刷新设置页 */
   onEngineFallback?(engine: 'browser'): void;
+}
+
+/** 「测试连接」的结果 */
+export interface TtsProbeResult {
+  ok: boolean;
+  detail: string;
+  ms: number;
+}
+
+/**
+ * 从错误响应里挖出真正的原因。
+ *
+ * 服务端返回的多半是 JSON（`{"error":{"message":"..."}}`），
+ * 但也有纯文本的，所以两种都试；挖不出来就返回空串，不硬编。
+ */
+async function readErrorDetail(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    if (!text) return '';
+    try {
+      const data = JSON.parse(text) as Record<string, unknown>;
+      const err = data.error as unknown;
+      if (typeof err === 'string') return err;
+      if (err && typeof err === 'object') {
+        const m = (err as Record<string, unknown>).message;
+        if (typeof m === 'string') return m;
+      }
+      const m2 = data.message ?? data.detail;
+      if (typeof m2 === 'string') return m2;
+    } catch {
+      /* 不是 JSON，当纯文本 */
+    }
+    return text.slice(0, 160);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 从各种形状的响应里挑出音色列表。
+ *
+ * 没见过的形状太多了（{voices:[…]} / [{id,name}] / {data:[…]} /
+ * 硅基流动那种 [{uri, name}]…），所以这里宽松地捞：
+ * 只要是「数组，且元素里能找出 id/uri/name 之类的东西」就认。
+ */
+function extractVoices(data: unknown): VoiceOption[] {
+  const arr = Array.isArray(data)
+    ? data
+    : data && typeof data === 'object'
+      ? ((data as Record<string, unknown>).voices as unknown[]) ??
+        ((data as Record<string, unknown>).data as unknown[]) ??
+        ((data as Record<string, unknown>).models as unknown[])
+      : [];
+  if (!Array.isArray(arr)) return [];
+
+  const out: VoiceOption[] = [];
+  for (const item of arr) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const id =
+      (typeof o.id === 'string' && o.id) ||
+      (typeof o.uri === 'string' && o.uri) ||
+      (typeof o.name === 'string' && o.name) ||
+      (typeof o.model === 'string' && o.model) ||
+      '';
+    if (!id) continue;
+    const name =
+      (typeof o.name === 'string' && o.name) ||
+      (typeof o.display_name === 'string' && (o.display_name as string)) ||
+      id;
+    out.push({ id, name });
+    if (out.length >= 60) break; // 拉太多显示框塞不下
+  }
+  return out;
 }
 
 export class TtsController {
@@ -212,7 +288,10 @@ export class TtsController {
       if (my !== this.gen) return;
       if (url) this.env.revokeUrl?.(url);
       const msg = (e as Error).message || '合成失败';
-      const name = s.ttsEngine === 'edge' ? 'Edge-TTS' : '自定义 TTS';
+      const name =
+        s.ttsEngine === 'edge'
+          ? 'Edge-TTS'
+          : `自定义 TTS（${currentProvider(s).name}）`;
       hooks.onNotice?.(`${name} 不可用（${msg}），已退回系统语音`);
       hooks.onEngineFallback?.('browser');
       // 降级后从同一段重来，用户不会听到半句话
@@ -221,28 +300,107 @@ export class TtsController {
   }
 
   private async synthRemote(text: string, s: Settings, fetchImpl: FetchLike): Promise<string> {
-    const isCustom = s.ttsEngine === 'custom';
-    const base = (s.ttsBaseURL || (isCustom ? '' : 'http://127.0.0.1:8787/v1')).replace(/\/+$/, '');
-    if (!base) throw new Error('未配置 TTS 地址');
+    const req = buildSynthRequest(s, text);
+    if (!req) throw new Error('当前引擎不需要远端合成');
+    if (req.error) throw new Error(req.error);
+    if (!req.url) throw new Error('未配置 TTS 地址');
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (s.ttsKey) headers.Authorization = `Bearer ${s.ttsKey}`;
-
-    const res = await fetchImpl(`${base}/audio/speech`, {
+    const res = await fetchImpl(req.url, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: isCustom ? 'tts-1' : 'edge-tts',
-        voice: s.ttsEdgeVoice || (isCustom ? 'alloy' : 'zh-CN-XiaoxiaoNeural'),
-        input: text,
-        speed: s.ttsRate || 1,
-        response_format: 'mp3',
-      }),
+      headers: req.headers,
+      body: JSON.stringify(req.body),
+      wjBinary: true,
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      // 服务端往往在 body 里给出真原因（模型名错、音色不存在…），
+      // 只报 HTTP 400 等于让用户瞎猜。
+      const detail = await readErrorDetail(res);
+      throw new Error(`HTTP ${res.status}${detail ? ` · ${detail}` : ''}`);
+    }
 
     const blob = await res.blob();
+    if (!blob.size) throw new Error('服务返回了空音频');
     return URL.createObjectURL(blob);
+  }
+
+  /* ---------- 自检：设置页的「测试连接」用 ---------- */
+
+  /**
+   * 发一句最短的文本试合成。
+   *
+   * 返回结构化结果而不是抛异常 —— 设置页要把它显示给用户看，
+   * 抛异常的话错误信息得自己从 message 里抠。
+   */
+  async probe(): Promise<TtsProbeResult> {
+    const s = this.env.getSettings();
+    if (s.ttsEngine === 'browser') {
+      return { ok: true, detail: '系统语音引擎无需测试', ms: 0 };
+    }
+
+    const req = buildSynthRequest(s, '测试');
+    if (!req) return { ok: false, detail: '当前引擎不支持测试', ms: 0 };
+    if (req.error) return { ok: false, detail: req.error, ms: 0 };
+    if (!req.url) return { ok: false, detail: '未配置 TTS 地址', ms: 0 };
+
+    const fetchImpl = this.env.fetchImpl ?? ((input, init) => fetch(input, init));
+    const t0 = Date.now();
+    try {
+      const res = await fetchImpl(req.url, {
+        method: 'POST',
+        headers: req.headers,
+        body: JSON.stringify(req.body),
+        wjBinary: true,
+      });
+      const ms = Date.now() - t0;
+      if (!res.ok) {
+        const detail = await readErrorDetail(res);
+        return { ok: false, detail: `HTTP ${res.status}${detail ? ` · ${detail}` : ''}`, ms };
+      }
+      const blob = await res.blob();
+      if (!blob.size) return { ok: false, detail: '服务返回了空音频', ms };
+      return { ok: true, detail: `合成成功 · ${(blob.size / 1024).toFixed(0)} KB · ${ms}ms`, ms };
+    } catch (e) {
+      const ms = Date.now() - t0;
+      return { ok: false, detail: (e as Error).message || '连不上', ms };
+    }
+  }
+
+  /**
+   * 拉取服务端的音色列表。
+   *
+   * OpenAI 兼容规范里**没有**标准的音色列表接口，各家自说自话：
+   * 硅基流动是 GET /audio/voice/list，OpenAI 官方压根没有。
+   * 所以这里按顺序试几个已知路径，都不通就返回空数组让用户手填。
+   */
+  async listRemoteVoices(): Promise<{ ok: boolean; voices: VoiceOption[]; detail: string }> {
+    const s = this.env.getSettings();
+    if (s.ttsEngine !== 'custom') {
+      return { ok: false, voices: [], detail: '只有自定义引擎支持拉取音色' };
+    }
+    const p = currentProvider(s);
+    const base = (s.ttsApiBase || p.base || '').replace(/\/+$/, '');
+    if (!base) return { ok: false, voices: [], detail: '未配置接口地址' };
+
+    const fetchImpl = this.env.fetchImpl ?? ((input, init) => fetch(input, init));
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    const key = (s.ttsApiKey || '').trim();
+    if (key) headers.Authorization = `Bearer ${key}`;
+
+    const paths = ['/audio/voice/list', '/voices', '/audio/voices', '/models'];
+    for (const path of paths) {
+      try {
+        const res = await fetchImpl(`${base}${path}`, { method: 'GET', headers });
+        if (!res.ok) continue;
+        const data = (await res.json()) as unknown;
+        const voices = extractVoices(data);
+        if (voices.length) {
+          return { ok: true, voices, detail: `从 ${path} 拉到 ${voices.length} 个音色` };
+        }
+      } catch {
+        /* 这条路不通，试下一条 */
+      }
+    }
+    return { ok: false, voices: [], detail: '该服务没有可发现的音色接口，请手动填写音色名' };
   }
 
   /* ---------- 系统语音 ---------- */

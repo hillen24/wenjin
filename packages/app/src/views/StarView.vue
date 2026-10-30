@@ -1432,6 +1432,8 @@ onBeforeUnmount(() => {
 
   .panel-close {
     display: grid;
+    /* 手机上这个关闭按钮原本只有 20px 高，手指头根本点不准 */
+    height: 40px;
   }
 
   .hud {

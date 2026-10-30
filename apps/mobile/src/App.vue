@@ -28,6 +28,7 @@ import {
 } from '@wenjin/app';
 import MineView from './views/MineView.vue';
 import { capFetch, isNativeHttp } from './capFetch';
+import { setupBackButton } from './backButton';
 
 /**
  * AI 请求在真机上必须走原生通道：WebView 拦第三方 API 的跨源响应，
@@ -71,6 +72,53 @@ watch(tab, (v) => {
 
 function onHashChange(): void {
   tab.value = readTabFromHash();
+}
+
+/**
+ * 页面栈
+ *
+ * 只记「用户主动切过去」的路径，不记浏览器历史。
+ * 返回键按这个栈回退，栈空才退出应用。
+ *
+ * 为什么不用浏览器历史：hash 路由每改一次就压一条历史，
+ * 用户按返回键时会被「倒退好几步」，最后直接退出应用 ——
+ * 表现为「我明明只想退回上一页，应用却没了」。
+ */
+const navStack = ref<MobileTab[]>([]);
+
+/** 切页。记录来源页，返回键才知道往哪退。 */
+function goTab(next: MobileTab, from?: MobileTab): void {
+  const cur = tab.value;
+  if (next === cur) return;
+  navStack.value = [...navStack.value, from ?? cur];
+  tab.value = next;
+}
+
+/** 返回上一页。没有上一页返回 false（交给系统退出）。 */
+function goBack(): boolean {
+  const stack = navStack.value;
+  if (!stack.length) return false;
+  const prev = stack[stack.length - 1]!;
+  navStack.value = stack.slice(0, -1);
+  tab.value = prev;
+  return true;
+}
+
+/**
+ * 顶栏返回箭头。
+ *
+ * 在「我的」的子页里，返回的落点固定是「我的」——
+ * 用户从「我的 → 设置」进来，返回键就该回「我的」，而不是栈里更早的某一页。
+ */
+function backToMine(): void {
+  const stack = navStack.value;
+  const idx = stack.lastIndexOf('me');
+  if (idx >= 0) {
+    navStack.value = stack.slice(0, idx);
+  } else {
+    navStack.value = [];
+  }
+  tab.value = 'me';
 }
 
 const theme = ref(core.theme.current);
@@ -129,20 +177,20 @@ function showToast(message: string): void {
 
 const nav: NavApi = {
   go(next: TabKey): void {
-    tab.value = next;
+    goTab(next);
   },
   gotoNode(nodeId: string): void {
     focusNode.value = { id: nodeId };
-    tab.value = 'star';
+    goTab('star');
   },
   startGewu(entryId: string): void {
     core.gewu.setEntry(entryId);
-    tab.value = 'gewu';
+    goTab('gewu');
     showToast(`已切到格物 · ${entryId}`);
   },
   openDoc(docId: string, para: number): void {
     jumpDoc.value = { id: docId, para };
-    tab.value = 'read';
+    goTab('read');
   },
   toast: showToast,
 };
@@ -180,15 +228,33 @@ function toggleTheme(): void {
   theme.value = core.theme.toggle();
 }
 
+/** 返回键「再按一次退出」的武装状态 */
+let exitArmed = false;
+let disposeBack = (): void => {};
+
 onMounted(() => {
   window.addEventListener('hashchange', onHashChange);
   void core.ai.autoVerify();
+  disposeBack = setupBackButton(() => {
+    if (goBack()) return true;
+    // 栈空了：再按一次退出，给用户一个反悔的机会
+    if (exitArmed) {
+      return false; // 交给系统 → 退出应用
+    }
+    exitArmed = true;
+    showToast('再按一次返回键退出');
+    window.setTimeout(() => {
+      exitArmed = false;
+    }, 2000);
+    return true;
+  });
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('hashchange', onHashChange);
   window.clearTimeout(toastTimer);
   offAi();
+  disposeBack();
 });
 </script>
 
@@ -197,7 +263,7 @@ onBeforeUnmount(() => {
 
   <div class="m-shell">
     <header class="m-top">
-      <button v-if="inMineSub" type="button" class="back" @click="tab = 'me'">
+      <button v-if="inMineSub" type="button" class="back" @click="backToMine">
         <Icon name="i-chevron" :size="18" />
       </button>
       <span v-else class="seal">
@@ -211,7 +277,7 @@ onBeforeUnmount(() => {
         class="ai-dot"
         :class="aiTone"
         :title="aiTitle"
-        @click="tab = 'set'"
+        @click="goTab('set')"
       >
         <span class="d" />
       </button>
@@ -247,7 +313,7 @@ onBeforeUnmount(() => {
         type="button"
         class="m-tab"
         :class="{ on: isTabOn(t.key) }"
-        @click="tab = t.key"
+        @click="goTab(t.key)"
       >
         <Icon :name="t.icon" :size="20" />
         <span>{{ t.label }}</span>
@@ -286,8 +352,8 @@ onBeforeUnmount(() => {
 
 .seal,
 .back {
-  width: 26px;
-  height: 26px;
+  width: 40px;
+  height: 40px;
   flex: none;
   display: grid;
   place-items: center;
@@ -334,8 +400,9 @@ onBeforeUnmount(() => {
 }
 
 .ai-dot {
-  width: 30px;
-  height: 30px;
+  /* 40px 是触摸目标的底线（原来 30px，手指头点不准） */
+  width: 40px;
+  height: 40px;
   flex: none;
   display: grid;
   place-items: center;
@@ -372,8 +439,8 @@ onBeforeUnmount(() => {
 }
 
 .theme {
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
   flex: none;
   display: grid;
   place-items: center;

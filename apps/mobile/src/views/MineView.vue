@@ -12,12 +12,15 @@
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { Icon } from '@wenjin/ui';
 import { useCore, useNav } from '@wenjin/app';
+import { APP_VERSION } from '../version';
 
 const core = useCore();
 const nav = useNav();
 
 const m = ref(core.materials.get());
 const litCount = ref(core.progress.lit().length);
+const settings = ref(core.settings.get());
+const aiStatus = ref(core.ai.status);
 
 const offMaterials = core.materials.subscribe((next) => {
   m.value = next;
@@ -25,10 +28,18 @@ const offMaterials = core.materials.subscribe((next) => {
 const offProgress = core.progress.subscribe((ids) => {
   litCount.value = ids.length;
 });
+const offSettings = core.settings.subscribe((next) => {
+  settings.value = next;
+});
+const offAi = core.ai.subscribe((st) => {
+  aiStatus.value = st;
+});
 
 onBeforeUnmount(() => {
   offMaterials();
   offProgress();
+  offSettings();
+  offAi();
 });
 
 const stats = computed<{ label: string; value: number }[]>(() => [
@@ -49,6 +60,66 @@ const greeting = computed(() => {
 
 /** 三句轮换，不重复灌鸡汤，只给一个「从哪儿进门」的提示 */
 const LINE = '哲学不在读懂别人，在于你终于能说清自己卡在哪。';
+
+/* ---------------- 状态速览 ---------------- */
+
+/**
+ * 手机端最常被问到的两件事：AI 通不通、朗读有没有声音。
+ * 之前这两件事只能进「设置」里自己翻，用户根本不知道当前是什么状态。
+ * 这里直接摆在「我的」页最上面，一眼看到，点一下就能去配。
+ */
+const aiTone = computed<'ok' | 'warn' | 'testing'>(() => {
+  switch (aiStatus.value.state) {
+    case 'verified':
+      return 'ok';
+    case 'verifying':
+      return 'testing';
+    default:
+      return 'warn';
+  }
+});
+
+const aiText = computed(() => {
+  const st = aiStatus.value;
+  switch (st.state) {
+    case 'verified':
+      return `${st.provider} · ${st.model}`;
+    case 'verifying':
+      return '正在验证…';
+    case 'failed':
+      return `连不上 · ${st.reason}`;
+    case 'unconfigured':
+      return '未配置 · 现在走预置剧本';
+    default:
+      return '待验证';
+  }
+});
+
+/**
+ * 朗读引擎的可用性。
+ *
+ * 安卓 WebView **没有** speechSynthesis —— 系统内置引擎在手机上等于哑的。
+ * 所以手机上只有接了云端 TTS 才能出声，这个事实必须直接告诉用户，
+ * 否则他只会以为「这应用坏了」。
+ */
+const ttsTone = computed<'ok' | 'warn'>(() => {
+  const e = settings.value.ttsEngine;
+  if (e === 'custom') return settings.value.ttsApiKey ? 'ok' : 'warn';
+  if (e === 'edge') return 'ok';
+  return 'warn'; // browser 引擎在手机上大概率不可用
+});
+
+const ttsText = computed(() => {
+  const s = settings.value;
+  switch (s.ttsEngine) {
+    case 'custom':
+      return s.ttsApiKey ? '云端 API 已配置' : '云端 API 未填 Key';
+    case 'edge':
+      return `Edge 桥 · ${s.ttsBaseURL.replace(/^https?:\/\//, '')}`;
+    default:
+      return '系统内置（手机通常无声）';
+  }
+});
 
 interface Entry {
   key: 'method' | 'ingest' | 'book' | 'set';
@@ -99,6 +170,26 @@ const ENTRIES: readonly Entry[] = [
       </div>
     </div>
 
+    <!-- 状态速览：AI 通不通、朗读有没有声音 -->
+    <section class="statuses">
+      <button type="button" class="status" @click="nav.go('set')">
+        <span class="dot" :class="aiTone" />
+        <span class="txt">
+          <b>AI 模型</b>
+          <small>{{ aiText }}</small>
+        </span>
+        <span class="arrow">›</span>
+      </button>
+      <button type="button" class="status" @click="nav.go('set')">
+        <span class="dot" :class="ttsTone" />
+        <span class="txt">
+          <b>朗读引擎</b>
+          <small>{{ ttsText }}</small>
+        </span>
+        <span class="arrow">›</span>
+      </button>
+    </section>
+
     <nav class="entries">
       <button
         v-for="e in ENTRIES"
@@ -118,7 +209,7 @@ const ENTRIES: readonly Entry[] = [
 
     <footer class="about">
       <span>致知 · 思想栖所</span>
-      <span class="ver">v3.8</span>
+      <span class="ver">v{{ APP_VERSION }}</span>
       <span class="note">数据只存在这台设备上，断网可用</span>
     </footer>
   </div>
@@ -181,6 +272,88 @@ const ENTRIES: readonly Entry[] = [
 
 .stat span {
   font-size: 11.5px;
+  color: var(--ink3);
+}
+
+/* ---------- 状态速览 ---------- */
+
+.statuses {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 12px 13px;
+  text-align: left;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+.status:active {
+  border-color: var(--line-hi);
+}
+
+.status .dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink3);
+}
+
+.status .dot.ok {
+  background: var(--jade);
+}
+
+.status .dot.warn {
+  background: var(--gold);
+}
+
+.status .dot.testing {
+  background: var(--steel);
+  animation: pulse 1.2s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.status .txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.status .txt b {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.status .txt small {
+  font-size: 12px;
+  color: var(--ink3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status .arrow {
+  flex: none;
+  font-size: 18px;
   color: var(--ink3);
 }
 
