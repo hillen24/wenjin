@@ -21,10 +21,23 @@ import { KeyValueStore, STORAGE_KEYS } from '../storage';
 /** 用户自定义子图（存取的基本单位） */
 export interface CustomGraph {
   nodes: StarNode[];
+  /** 生效的边：图上画实线 */
   edges: StarEdge[];
+  /**
+   * 待定池：被用户否决、但没有永久删掉的边。
+   *
+   * ===== 为什么要这个池子 =====
+   * 「自生长」有两个方向：AI 和用户都能往图上长边，但**必须留一个「审」的环节**。
+   * 直接删掉否决的边看似干净，实际上丢掉了两样东西：
+   * 1. AI 的判断痕迹 —— 它为什么会认为这两个概念有关系？这个信息本身有价值；
+   * 2. 翻案的可能 —— 读书读深了，三个月前否决的那条边可能正好是对的。
+   *
+   * 所以否决 = 移进池子（图上不画），而不是删除。真不要了再「永久删除」。
+   */
+  pending: StarEdge[];
 }
 
-export const EMPTY_GRAPH: CustomGraph = { nodes: [], edges: [] };
+export const EMPTY_GRAPH: CustomGraph = { nodes: [], edges: [], pending: [] };
 
 const KINDS: readonly NodeKind[] = ['school', 'method', 'figure', 'concept'];
 const RELS: readonly EdgeRelation[] = ['proposes', 'refines', 'inherits', 'opposes'];
@@ -341,8 +354,8 @@ export function parseAiGraph(
 
 /** 读出来的数据可疑就整体弃用（比带病渲染安全） */
 function sanitizeGraph(raw: unknown): CustomGraph {
-  if (!raw || typeof raw !== 'object') return { ...EMPTY_GRAPH, nodes: [], edges: [] };
-  const obj = raw as { nodes?: unknown; edges?: unknown };
+  if (!raw || typeof raw !== 'object') return { nodes: [], edges: [], pending: [] };
+  const obj = raw as { nodes?: unknown; edges?: unknown; pending?: unknown };
   const nodes = Array.isArray(obj.nodes)
     ? obj.nodes.filter(
         (n): n is StarNode =>
@@ -353,19 +366,45 @@ function sanitizeGraph(raw: unknown): CustomGraph {
       )
     : [];
   const ids = new Set(nodes.map((n) => n.id));
-  const edges = Array.isArray(obj.edges)
-    ? (obj.edges as unknown[]).filter(
-        (e): e is StarEdge =>
-          Array.isArray(e) &&
-          e.length >= 3 &&
-          typeof e[0] === 'string' &&
-          typeof e[1] === 'string' &&
-          ids.has(e[0]) &&
-          ids.has(e[1]) &&
-          RELS.includes(e[2] as EdgeRelation),
-      )
-    : [];
-  return { nodes, edges };
+  const readEdges = (raw2: unknown): StarEdge[] =>
+    Array.isArray(raw2)
+      ? (raw2 as unknown[]).filter(
+          (e): e is StarEdge =>
+            Array.isArray(e) &&
+            e.length >= 3 &&
+            typeof e[0] === 'string' &&
+            typeof e[1] === 'string' &&
+            ids.has(e[0]) &&
+            ids.has(e[1]) &&
+            RELS.includes(e[2] as EdgeRelation),
+        )
+      : [];
+
+  const edges = readEdges(obj.edges);
+  /**
+   * 待定池里的边必须「不属于生效边」——
+   * 否则会出现同一条边既在图上画着、又在池子里躺着。
+   * 旧数据没有 pending 字段，这里自然得到空数组，不需要写迁移。
+   */
+  const live = new Set(edges.map(edgeKey));
+  const pending = readEdges(obj.pending).filter((e) => !live.has(edgeKey(e)));
+
+  return { nodes, edges, pending };
+}
+
+/* ============================================================
+ * 边的标识与治理
+ * ============================================================ */
+
+/**
+ * 一条边的唯一标识。
+ *
+ * 用 `from>to>rel` 而不是「无序对」——同一对节点之间**可以**有两种不同的关系
+ * （康德反对休谟的因果论，同时继承了他的问题意识），这是哲学图谱的常态，
+ * 不能当成重复。
+ */
+export function edgeKey(e: StarEdge): string {
+  return `${e[0]}>${e[1]}>${e[2]}`;
 }
 
 export class StarGraphStore {
@@ -416,18 +455,88 @@ export class StarGraphStore {
     const next: CustomGraph = {
       nodes: [...cur.nodes, ...r.nodes],
       edges: [...cur.edges, ...r.edges],
+      // 待定池原样保留：新加一批不该复活旧否决，也不该清掉它
+      pending: cur.pending,
     };
     this.kv.writeJSON(STORAGE_KEYS.customGraph, next);
     this.cache = next;
     return { ok: true, graph: next, warnings: r.warnings };
   }
 
+  /**
+   * 否决一条边：从生效集合移进待定池。
+   *
+   * 不是删除 —— 用户日后可能翻案，而且 AI 当时为什么这么判断本身是信息。
+   * 内置边不受影响（本方法只碰自定义子图）。
+   */
+  rejectEdge(edge: StarEdge): CustomGraph {
+    const cur = this.load();
+    const key = edgeKey(edge);
+    // 已经不在生效集合里就不再动（重复点击 / 并发）
+    if (!cur.edges.some((e) => edgeKey(e) === key)) return cur;
+
+    const next: CustomGraph = {
+      nodes: cur.nodes,
+      edges: cur.edges.filter((e) => edgeKey(e) !== key),
+      pending: cur.pending.some((e) => edgeKey(e) === key) ? cur.pending : [...cur.pending, edge],
+    };
+    this.kv.writeJSON(STORAGE_KEYS.customGraph, next);
+    this.cache = next;
+    return next;
+  }
+
+  /**
+   * 翻案：把一条被否决的边放回生效集合。
+   *
+   * 放回前要确认两个端点还在 —— 节点可能已经被删了，
+   * 那种情况下放回去会得到一条悬空边，merged() 会把它过滤掉，
+   * 但用户的点击就白费了。直接拒绝并保持池子里的原样更诚实。
+   */
+  restoreEdge(edge: StarEdge): { graph: CustomGraph; ok: boolean } {
+    const cur = this.load();
+    const key = edgeKey(edge);
+    if (!cur.pending.some((e) => edgeKey(e) === key)) return { graph: cur, ok: false };
+
+    const ids = new Set(cur.nodes.map((n) => n.id));
+    if (!ids.has(edge[0]) || !ids.has(edge[1])) return { graph: cur, ok: false };
+
+    const next: CustomGraph = {
+      nodes: cur.nodes,
+      edges: [...cur.edges, edge],
+      pending: cur.pending.filter((e) => edgeKey(e) !== key),
+    };
+    this.kv.writeJSON(STORAGE_KEYS.customGraph, next);
+    this.cache = next;
+    return { graph: next, ok: true };
+  }
+
+  /** 永久删除一条待定边。真不要了才用。 */
+  dropRejected(edge: StarEdge): CustomGraph {
+    const cur = this.load();
+    const key = edgeKey(edge);
+    const next: CustomGraph = {
+      nodes: cur.nodes,
+      edges: cur.edges,
+      pending: cur.pending.filter((e) => edgeKey(e) !== key),
+    };
+    this.kv.writeJSON(STORAGE_KEYS.customGraph, next);
+    this.cache = next;
+    return next;
+  }
+
   /** 删除一个自定义节点及其所有连边。只能删自定义的，内置节点删不了。 */
   removeNode(id: string): CustomGraph {
     const cur = this.load();
+    /**
+     * 待定池里指向这个节点的边也要清掉。
+     *
+     * 不清的话池子里会留下永远无法翻案的死记录（restoreEdge 会因为端点不存在
+     * 而拒绝），用户看到一个点了没反应的「恢复」按钮 —— 比没有更糟。
+     */
     const next: CustomGraph = {
       nodes: cur.nodes.filter((n) => n.id !== id),
       edges: cur.edges.filter(([a, b]) => a !== id && b !== id),
+      pending: cur.pending.filter(([a, b]) => a !== id && b !== id),
     };
     this.kv.writeJSON(STORAGE_KEYS.customGraph, next);
     this.cache = next;
@@ -436,13 +545,18 @@ export class StarGraphStore {
 
   /** 清空「我的星区」。用户加错一堆时得有后悔药。 */
   clear(): CustomGraph {
-    const next: CustomGraph = { nodes: [], edges: [] };
+    const next: CustomGraph = { nodes: [], edges: [], pending: [] };
     this.kv.writeJSON(STORAGE_KEYS.customGraph, next);
     this.cache = next;
     return next;
   }
 
-  /** 内置 + 自定义合并视图。悬空边在这里兜底过滤。 */
+  /**
+   * 内置 + 自定义合并视图。悬空边在这里兜底过滤。
+   *
+   * 注意：**只返回生效的边**，待定池不进图。
+   * 待定边是「被否决过的」，画在图上会让用户怀疑自己的否决没生效。
+   */
   merged(
     builtinNodes: readonly StarNode[],
     builtinEdges: readonly StarEdge[],
@@ -452,6 +566,7 @@ export class StarGraphStore {
     return {
       nodes: [...builtinNodes, ...cur.nodes],
       edges: [...builtinEdges, ...cur.edges.filter(([a, b]) => ids.has(a) && ids.has(b))],
+      pending: cur.pending,
     };
   }
 }

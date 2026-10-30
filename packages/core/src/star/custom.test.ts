@@ -12,6 +12,7 @@ import {
   PROMPT_NODE_LIMIT,
   StarGraphStore,
   buildAiPrompt,
+  edgeKey,
   nameToId,
   parseAiGraph,
   validateIncoming,
@@ -300,5 +301,214 @@ describe('释义兜底', () => {
     if (!r.ok) return;
     expect(r.nodes[0]!.brief).toBe(NO_BRIEF);
     expect(r.nodes[0]!.brief).not.toBe('无名概念');
+  });
+});
+
+/* ============================================================
+ * 边的治理：否决 / 待定池 / 翻案
+ *
+ * ===== 这组测试在守什么 =====
+ * 「自生长」有两个方向：AI 和用户都能往图上长边。但必须留一个「审」的环节。
+ * 直接删掉否决的边，会丢两样东西：AI 当时为什么这么判断（信息），
+ * 以及日后翻案的可能（读深了可能发现那条边其实对）。
+ *
+ * 所以否决 = 移进待定池，不是删除。这组测试钉住这个语义。
+ * ============================================================ */
+describe('边的否决与待定池', () => {
+  it('否决一条边：从生效集合移进待定池，图上看不见了', () => {
+    const s = store();
+    const r = s.add(
+      {
+        nodes: [{ name: '甲' }, { name: '乙' }],
+        edges: [{ from: '甲', to: '乙', rel: 'refines', label: '修正' }],
+      },
+      { nodes: STAR_NODES },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const edge = r.graph.edges[0]!;
+
+    const after = s.rejectEdge(edge);
+    expect(after.edges.find((e) => edgeKey(e) === edgeKey(edge))).toBeUndefined();
+    expect(after.pending).toHaveLength(1);
+    // 节点还在 —— 否决的是关系，不是概念
+    expect(after.nodes).toHaveLength(2);
+
+    // merged 只返回生效边，待定边不进图
+    const m = s.merged(STAR_NODES, []);
+    expect(m.edges.some((e) => edgeKey(e) === edgeKey(edge))).toBe(false);
+  });
+
+  it('否决不删除：待定池里还留着原样（含说明文字）', () => {
+    const s = store();
+    const r = s.add(
+      {
+        nodes: [{ name: '甲' }, { name: '乙' }],
+        edges: [{ from: '甲', to: '乙', rel: 'opposes', label: '甲反对乙' }],
+      },
+      { nodes: STAR_NODES },
+    );
+    if (!r.ok) return;
+    const edge = r.graph.edges[0]!;
+
+    s.rejectEdge(edge);
+    const p = s.load().pending[0]!;
+
+    expect(p[0]).toBe(edge[0]);
+    expect(p[1]).toBe(edge[1]);
+    expect(p[2]).toBe('opposes');
+    expect(p[3]).toBe('甲反对乙');
+  });
+
+  it('翻案：从待定池放回生效集合', () => {
+    const s = store();
+    const r = s.add(
+      {
+        nodes: [{ name: '甲' }, { name: '乙' }],
+        edges: [{ from: '甲', to: '乙', rel: 'inherits' }],
+      },
+      { nodes: STAR_NODES },
+    );
+    if (!r.ok) return;
+    const edge = r.graph.edges[0]!;
+
+    s.rejectEdge(edge);
+    const back = s.restoreEdge(edge);
+
+    expect(back.ok).toBe(true);
+    expect(back.graph.edges).toHaveLength(1);
+    expect(back.graph.pending).toHaveLength(0);
+  });
+
+  it('端点被删掉后不能翻案（避免放回一条悬空边）', () => {
+    const s = store();
+    const r = s.add(
+      {
+        nodes: [{ name: '甲' }, { name: '乙' }],
+        edges: [{ from: '甲', to: '乙', rel: 'inherits' }],
+      },
+      { nodes: STAR_NODES },
+    );
+    if (!r.ok) return;
+    const edge = r.graph.edges[0]!;
+    s.rejectEdge(edge);
+    s.removeNode(edge[0]);
+
+    const back = s.restoreEdge(edge);
+    expect(back.ok).toBe(false);
+    // 拒绝时不能把池子搞脏
+    expect(s.load().pending).toHaveLength(0);
+  });
+
+  it('删节点时连带清掉池子里指向它的边（不留点了没反应的死记录）', () => {
+    const s = store();
+    const r = s.add(
+      {
+        nodes: [{ name: '甲' }, { name: '乙' }],
+        edges: [{ from: '甲', to: '乙', rel: 'inherits' }],
+      },
+      { nodes: STAR_NODES },
+    );
+    if (!r.ok) return;
+    const edge = r.graph.edges[0]!;
+    s.rejectEdge(edge);
+
+    const after = s.removeNode(edge[1]);
+    expect(after.pending).toHaveLength(0);
+  });
+
+  it('永久删除待定边', () => {
+    const s = store();
+    const r = s.add(
+      {
+        nodes: [{ name: '甲' }, { name: '乙' }],
+        edges: [{ from: '甲', to: '乙', rel: 'inherits' }],
+      },
+      { nodes: STAR_NODES },
+    );
+    if (!r.ok) return;
+    const edge = r.graph.edges[0]!;
+    s.rejectEdge(edge);
+
+    const after = s.dropRejected(edge);
+    expect(after.pending).toHaveLength(0);
+    expect(after.edges).toHaveLength(0);
+  });
+
+  it('重复否决同一条边不会在池子里留下两份', () => {
+    const s = store();
+    const r = s.add(
+      {
+        nodes: [{ name: '甲' }, { name: '乙' }],
+        edges: [{ from: '甲', to: '乙', rel: 'inherits' }],
+      },
+      { nodes: STAR_NODES },
+    );
+    if (!r.ok) return;
+    const edge = r.graph.edges[0]!;
+
+    s.rejectEdge(edge);
+    s.rejectEdge(edge);
+    s.rejectEdge(edge);
+
+    expect(s.load().pending).toHaveLength(1);
+  });
+
+  it('同一对节点可以有两条不同类型的关系（哲学图谱的常态）', () => {
+    // 用 edgeKey 而不是「无序对」区分：康德既反对休谟的因果论，又继承了他的问题意识
+    const e1: readonly [string, string, 'opposes', string] = ['a', 'b', 'opposes', ''];
+    const e2: readonly [string, string, 'inherits', string] = ['a', 'b', 'inherits', ''];
+    expect(edgeKey(e1)).not.toBe(edgeKey(e2));
+  });
+
+  it('旧数据没有 pending 字段也能读（不需要写迁移）', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(
+      STORAGE_KEYS.customGraph,
+      JSON.stringify({
+        nodes: [{ id: 'u_x', name: '旧节点', kind: 'concept', school: '我的星区', brief: 'b', src: 's', doc: null }],
+        edges: [],
+      }),
+    );
+    const s = new StarGraphStore(new KeyValueStore(storage));
+    expect(s.load().pending).toEqual([]);
+    expect(s.load().nodes).toHaveLength(1);
+  });
+
+  it('待定边不会因为同时在生效集合里而重复出现', () => {
+    // 手工造一份脏数据：同一条边既在 edges 又在 pending
+    const storage = new MemoryStorage();
+    storage.setItem(
+      STORAGE_KEYS.customGraph,
+      JSON.stringify({
+        nodes: [
+          { id: 'u_a', name: 'A', kind: 'concept', school: 'S', brief: 'b', src: 's', doc: null },
+          { id: 'u_b', name: 'B', kind: 'concept', school: 'S', brief: 'b', src: 's', doc: null },
+        ],
+        edges: [['u_a', 'u_b', 'inherits', 'x']],
+        pending: [['u_a', 'u_b', 'inherits', 'x']],
+      }),
+    );
+    const s = new StarGraphStore(new KeyValueStore(storage));
+    expect(s.load().edges).toHaveLength(1);
+    expect(s.load().pending).toHaveLength(0);
+  });
+
+  it('清空我的星区时池子一起清', () => {
+    const s = store();
+    const r = s.add(
+      {
+        nodes: [{ name: '甲' }, { name: '乙' }],
+        edges: [{ from: '甲', to: '乙', rel: 'inherits' }],
+      },
+      { nodes: STAR_NODES },
+    );
+    if (!r.ok) return;
+    s.rejectEdge(r.graph.edges[0]!);
+
+    const after = s.clear();
+    expect(after.nodes).toHaveLength(0);
+    expect(after.edges).toHaveLength(0);
+    expect(after.pending).toHaveLength(0);
   });
 });

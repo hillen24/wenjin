@@ -110,7 +110,8 @@ function syncNarrow(): void {
 
 /** DOM 引用。帧循环直接操作它们，不经过虚拟 DOM。 */
 const nodeEls = new Map<string, SVGGElement>();
-const lineEls = new Map<number, SVGLineElement>();
+/** 每条边可能有多个图层（可见线 + 命中线），所以按 index 存成数组 */
+const lineEls = new Map<number, SVGLineElement[]>();
 
 let raf = 0;
 
@@ -265,6 +266,7 @@ function pickHit(id: string): void {
     resetFilter();
     nav.toast('已清掉筛选，让你看到这个节点');
   }
+  selectedEdgeIdx.value = null;
   selectedId.value = id;
   panelOpen.value = true;
   centerOn(id);
@@ -380,6 +382,84 @@ function edgeDimmed(i: number): boolean {
   return !f.has(e[0]) || !f.has(e[1]);
 }
 
+/* ---------------- 边的治理（3.11.0） ---------------- */
+
+/**
+ * 选中的边。
+ *
+ * 面板同一时间只显示一样东西：要么一个节点，要么一条边。
+ * 两边都显示会让面板变成一本翻不完的账 —— 用户点边就是想审这条关系。
+ */
+const selectedEdgeIdx = ref<number | null>(null);
+
+const selectedEdge = computed(() => {
+  const i = selectedEdgeIdx.value;
+  if (i === null) return null;
+  const e = allEdges.value[i];
+  if (!e) return null;
+  return {
+    edge: e,
+    index: i,
+    /**
+     * 内置边是权威数据，用户不能否决（否决了下次升级又回来，等于骗人）。
+     * allEdges = STAR_EDGES ++ graph.edges，所以下标越过内置数量就是自定义边。
+     */
+    custom: i >= STAR_EDGES.length,
+    fromName: nodeName(e[0]),
+    toName: nodeName(e[1]),
+  };
+});
+
+function pickEdge(i: number): void {
+  selectedEdgeIdx.value = i;
+  selectedId.value = null; // 面板切到边的视图
+  pathResult.value = null;
+  pathFrom.value = null; // 寻路中点边 = 放弃寻路
+  panelOpen.value = true;
+}
+
+function clearPickedEdge(): void {
+  selectedEdgeIdx.value = null;
+}
+
+/** 否决：移进待定池 */
+function rejectEdge(): void {
+  const sel = selectedEdge.value;
+  if (!sel || !sel.custom) return;
+  graph.value = core.star.rejectEdge(sel.edge);
+  selectedEdgeIdx.value = null;
+  nav.toast(`已否决「${sel.fromName} — ${RELATION_NAME[sel.edge[2]]} → ${sel.toName}」，可在待定池翻案`);
+}
+
+/** 翻案：放回图上 */
+function restoreEdge(e: StarEdge): void {
+  const r = core.star.restoreEdge(e);
+  if (!r.ok) {
+    nav.toast('恢复失败：这条关系的端点已经不在了');
+    return;
+  }
+  graph.value = r.graph;
+  nav.toast(`已恢复「${nodeName(e[0])} — ${RELATION_NAME[e[2]]} → ${nodeName(e[1])}」`);
+}
+
+/** 永久删除待定边 */
+function dropEdge(e: StarEdge): void {
+  graph.value = core.star.dropRejected(e);
+  nav.toast('已永久删除这条关系');
+}
+
+/** 待定池展开状态 */
+const pendingOpen = ref(false);
+
+const pendingList = computed(() =>
+  (graph.value.pending ?? []).map((e) => ({
+    edge: e,
+    fromName: nodeName(e[0]),
+    toName: nodeName(e[1]),
+  })),
+);
+
+
 /* ---------------- 节点到其他模块的入口（3.10.0） ---------------- */
 
 /**
@@ -428,16 +508,23 @@ function loop(): void {
     el.setAttribute('transform', `translate(${b.x.toFixed(2)},${b.y.toFixed(2)})`);
   }
 
-  for (const [i, el] of lineEls) {
+  for (const [i, els] of lineEls) {
     const edge = allEdges.value[i];
     if (!edge) continue;
     const A = bodies.value[edge[0]];
     const B = bodies.value[edge[1]];
     if (!A || !B) continue;
-    el.setAttribute('x1', A.x.toFixed(2));
-    el.setAttribute('y1', A.y.toFixed(2));
-    el.setAttribute('x2', B.x.toFixed(2));
-    el.setAttribute('y2', B.y.toFixed(2));
+    const x1 = A.x.toFixed(2);
+    const y1 = A.y.toFixed(2);
+    const x2 = B.x.toFixed(2);
+    const y2 = B.y.toFixed(2);
+    // 同一条边的可见层和命中层必须一起动
+    for (const el of els) {
+      el.setAttribute('x1', x1);
+      el.setAttribute('y1', y1);
+      el.setAttribute('x2', x2);
+      el.setAttribute('y2', y2);
+    }
   }
 
   raf = requestAnimationFrame(loop);
@@ -522,6 +609,9 @@ function onNodeClick(id: string): void {
     completePath(id);
     return;
   }
+  // 面板同一时间只显示一样东西：选中节点就要把「选中的边」清掉，
+  // 否则边的分支（v-if 在前）会一直抢着渲染，点了节点却还显示上一条边。
+  selectedEdgeIdx.value = null;
   selectedId.value = id;
   panelOpen.value = true;
 }
@@ -570,6 +660,19 @@ function onCanvasDown(e: PointerEvent): void {
 
   const target = e.target as Element | null;
   if (target?.closest('g.node')) return;
+  /**
+   * 也不能从「边的命中层」开始平移。
+   *
+   * 这里是踩过的坑：本来允许从边上拖画布，结果发现边的点击**完全没反应**。
+   * 原因是下面这行 setPointerCapture —— 指针一旦被画布捕获，
+   * 浏览器就把后续事件（包括 click）都派发给捕获元素，
+   * <line> 上的 click 处理器永远收不到。
+   * （用 dispatchEvent 手动派发 click 是能绕过的，所以自动化测试一度显示"正常"。）
+   *
+   * 和节点一样处理：命中边就不平移，点击才能正常落到边上。
+   * 代价是 14px 的边带内不能起手平移，用户挪几像素就能拖。
+   */
+  if (target?.closest('line.edge-hit')) return;
 
   try {
     svgEl.value?.setPointerCapture(e.pointerId);
@@ -988,9 +1091,18 @@ function scanEls(): void {
     const id = el.dataset.node;
     if (id) nodeEls.set(id, el);
   }
-  for (const el of svg.querySelectorAll<SVGLineElement>('line.edge')) {
+  /**
+   * 每条边有两层：可见的细线 + 透明的粗命中线。
+   * 只收可见那层的话，命中层的坐标会永远停在初始值 —— 表现为
+   * 「看得见的线会动，但点上去没反应」。
+   * 所以按 data-idx 收全部图层，同一个 idx 存成数组。
+   */
+  for (const el of svg.querySelectorAll<SVGLineElement>('line[data-idx]')) {
     const idx = Number(el.dataset.idx);
-    if (Number.isFinite(idx)) lineEls.set(idx, el);
+    if (!Number.isFinite(idx)) continue;
+    const arr = lineEls.get(idx);
+    if (arr) arr.push(el);
+    else lineEls.set(idx, [el]);
   }
 }
 
@@ -1013,6 +1125,7 @@ onMounted(() => {
 
   // 从别处跳进来时带的选中节点
   if (props.focus) {
+    selectedEdgeIdx.value = null;
     selectedId.value = props.focus;
     panelOpen.value = true;
   }
@@ -1023,6 +1136,7 @@ watch(
   () => props.focus,
   (id) => {
     if (id) {
+      selectedEdgeIdx.value = null;
       selectedId.value = id;
       panelOpen.value = true;
     }
@@ -1100,9 +1214,25 @@ onBeforeUnmount(() => {
           v-for="(e, i) in allEdges"
           :key="`e${i}`"
           class="edge"
-          :class="[e[2], { dim: edgeDimmed(i), path: pathResult && !edgeDimmed(i) }]"
+          :class="[
+            e[2],
+            { dim: edgeDimmed(i), path: pathResult && !edgeDimmed(i), picked: selectedEdgeIdx === i },
+          ]"
           :data-idx="i"
           marker-end="url(#ah)"
+        />
+
+        <!--
+          边的透明命中层。
+          可见线只有 1px，手指和鼠标都点不准；单独铺一条 14px 的透明线来收事件。
+          放在节点之前，这样节点永远压在上面（点节点优先）。
+        -->
+        <line
+          v-for="(_e, i) in allEdges"
+          :key="`eh${i}`"
+          class="edge-hit"
+          :data-idx="i"
+          @click="pickEdge(i)"
         />
 
         <g
@@ -1301,9 +1431,46 @@ onBeforeUnmount(() => {
         <Icon name="i-minus" :size="16" />
       </button>
 
-      <div v-if="!selected" class="empty">
+      <!-- 选中一条边：面板切到「审这条关系」 -->
+      <div v-if="selectedEdge" class="detail edge-detail">
+        <h3>一条关系</h3>
+        <div class="kind">
+          {{ selectedEdge.custom ? '我加的关系' : '内置关系' }}
+        </div>
+
+        <p class="edge-sentence serif">
+          <b>{{ selectedEdge.fromName }}</b>
+          <span class="rel-tag">{{ RELATION_NAME[selectedEdge.edge[2]] }}</span>
+          <b>{{ selectedEdge.toName }}</b>
+        </p>
+        <p v-if="selectedEdge.edge[3]" class="edge-note">{{ selectedEdge.edge[3] }}</p>
+
+        <div class="btn-row">
+          <button
+            v-if="selectedEdge.custom"
+            type="button"
+            class="btn danger"
+            @click="rejectEdge()"
+          >
+            否决这条关系
+          </button>
+          <button type="button" class="btn ghost" @click="clearPickedEdge()">
+            收起
+          </button>
+        </div>
+
+        <p v-if="!selectedEdge.custom" class="note">
+          内置关系来自整理好的思想史，不能否决 —— 但你可以自己补一条不同类型的关系。
+        </p>
+        <p v-else class="note">
+          否决不会删除它，只是移进「待定池」。读深了随时能翻案。
+        </p>
+      </div>
+
+      <div v-else-if="!selected" class="empty">
         <p>点击任意节点查看它是什么，以及它跟谁有关系。</p>
         <p class="dim">拖动节点可以重排；空白处拖拽平移，双指（或滚轮）缩放。</p>
+        <p class="dim">点一条连线可以审那段关系 —— 加错的关系能否决，也能翻案。</p>
       </div>
 
       <div v-else class="detail">
@@ -1413,6 +1580,34 @@ onBeforeUnmount(() => {
           <span class="school">{{ b.school }}</span>
           <div class="bar"><i :class="{ low: b.pct < 40 }" :style="{ width: Math.max(b.pct, 4) + '%' }" /></div>
           <b>{{ b.pct }}%</b>
+        </div>
+      </div>
+
+      <!--
+        待定池：被否决的关系。
+        只在有货时出现 —— 空池子占着面板底部只会让人以为「是不是坏了」。
+      -->
+      <div v-if="pendingList.length" class="pending">
+        <button type="button" class="pending-head" @click="pendingOpen = !pendingOpen">
+          <span>待定池 · {{ pendingList.length }} 条被否决的关系</span>
+          <Icon :name="pendingOpen ? 'i-minus' : 'i-plus'" :size="13" />
+        </button>
+
+        <div v-if="pendingOpen" class="pending-body">
+          <p class="pending-tip">
+            这些是你否决过、但还没删掉的关系。图上看不见，但还留着 —— 读深了觉得对，可以放回去。
+          </p>
+          <div v-for="p in pendingList" :key="`${p.edge[0]}>${p.edge[1]}>${p.edge[2]}`" class="pending-row">
+            <span class="pr-text">
+              {{ p.fromName }}
+              <em>{{ RELATION_NAME[p.edge[2]] }}</em>
+              {{ p.toName }}
+            </span>
+            <span class="pr-act">
+              <button type="button" class="link" @click="restoreEdge(p.edge)">恢复</button>
+              <button type="button" class="link del" @click="dropEdge(p.edge)">删掉</button>
+            </span>
+          </div>
         </div>
       </div>
     </aside>
@@ -1626,6 +1821,33 @@ onBeforeUnmount(() => {
   stroke-width: 2.2;
   stroke-dasharray: none;
   opacity: 1;
+}
+
+/* 被选中的边（面板正在显示它） */
+.edge.picked {
+  stroke: var(--accent);
+  stroke-width: 2.6;
+  stroke-dasharray: none;
+  opacity: 1;
+}
+
+/*
+ * 边的透明命中层。
+ *
+ * stroke-width 决定可点范围，14 大约是手指能稳住的宽度；
+ * fill:none 让线本身不渲染，但 pointer-events:stroke 仍然能收事件。
+ */
+.edge-hit {
+  stroke: transparent;
+  stroke-width: 14;
+  fill: none;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+/* 悬停时给一点反馈，否则用户不知道边是可以点的 */
+.edge-hit:hover {
+  stroke: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 /* 节点 */
@@ -2185,6 +2407,154 @@ onBeforeUnmount(() => {
 }
 
 /* ---------- 盲区 ---------- */
+
+/* ---------- 边的详情与待定池 ---------- */
+
+.edge-detail h3 {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 6px;
+}
+
+/* 把一条边写成一句人话，而不是「A → B」的机器格式 */
+.edge-sentence {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 8px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.edge-sentence b {
+  font-weight: 500;
+}
+
+.rel-tag {
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.edge-note {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--ink2);
+}
+
+.edge-detail .note {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--ink3);
+}
+
+.pending {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.pending-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink2);
+  text-align: left;
+}
+
+.pending-head:hover {
+  border-color: var(--line-hi);
+  color: var(--ink);
+}
+
+.pending-head svg {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.pending-body {
+  margin-top: 8px;
+}
+
+.pending-tip {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--ink3);
+}
+
+.pending-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--ink2);
+}
+
+.pending-row:last-child {
+  border-bottom: 0;
+}
+
+.pr-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-text em {
+  font-style: normal;
+  padding: 0 5px;
+  margin: 0 2px;
+  border-radius: 4px;
+  background: var(--field);
+  color: var(--ink3);
+  font-size: 10.5px;
+}
+
+.pr-act {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+
+.pr-act .link {
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pr-act .link.del {
+  color: var(--ink3);
+}
+
+.pr-act .link.del:hover {
+  color: var(--rose, #b0483f);
+}
+
+/* ---------- 盲区检测 ---------- */
 
 .blind {
   margin-top: auto;
